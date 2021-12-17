@@ -1,9 +1,8 @@
 Package: sreft
-Title: What the Package Does (One Line, Title Case)
+Title: Statistical Restoration of Fragmented Time course (SReFT)
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+    person(family = "Jin", given ="Ryota", role = aut)
 Description: What the package does (one paragraph).
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
