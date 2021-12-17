@@ -1,0 +1,4 @@
+Rstudioでパッケージ開発
+1.　GitHubにリポジトリを作成
+2.　RstudioでVersion Controlから1.で作成したリポジトリに接続
+3.　usethis::create_package(getwd())を使って対象のフォルダの性質をパッケージ開発に変更
