@@ -1,4 +1,3 @@
-# Set working directory ------------------------------------------------------------------------------
 library(MASS)
 library(dplyr)
 library(tidyr)
@@ -24,30 +23,21 @@ intercept <- function (x, y) {
 estimatecInitialParameter <- function (nmsheet, BASELINE, GTA = 10) {
   NUMBM <- nmsheet$Biomarker %>% max()
 
-  TIME_split  <- split(nmsheet$TIME, list(nmsheet$ID, nmsheet$Biomarker))
-  DV_split    <- split(nmsheet$DV, list(nmsheet$ID, nmsheet$Biomarker))
-
-  mean_slope_summary <- data.frame(ID = dplyr::distinct(nmsheet, ID, Biomarker) %>%
-                      dplyr::arrange(Biomarker, ID) %>%
-                      dplyr::select(ID),
-                    Biomarker = dplyr::distinct(nmsheet, ID, Biomarker) %>%
-                      dplyr::arrange(Biomarker, ID) %>%
-                      dplyr::select(Biomarker),
-                    Mean = mapply(mean, TIME_split),
-                    Slope = mapply(slope, TIME_split, DV_split)) %>%
-    drop_na()
-
-  mean_split  <- split(mean_slope_summary$Mean, mean_slope_summary$Biomarker)
-  slope_split <- split(mean_slope_summary$Slope, mean_slope_summary$Biomarker)
-
-  slopes <- mapply(slope, mean_split, slope_split)
-  intercepts <- mapply(intercept, mean_split, slope_split)
-  meanslope <- mapply(mean, slope_split)
+  summary_eachbm <- nmsheet %>%
+    dplyr::group_by(ID, Biomarker) %>%
+    dplyr::summarise(Mean = mean(TIME),
+                     Slope = slope(TIME, DV),
+                     .groups = "drop") %>%
+    dplyr::group_by(Biomarker) %>%
+    dplyr::summarise(slopes = slope(Mean, Slope),
+                     intercepts = intercept(Mean, Slope),
+                     meanslope = mean(Slope),
+                     .groups = "drop")
 
   output <- data.frame(Biomarker = paste0("Biomarker", 1:NUMBM)) %>%
-    dplyr::mutate(theta_alpha = c(BASELINE, meanslope[-1] / exp(slopes[-1] * GTA)),
-                  theta_beta = intercepts + theta_alpha * slopes,
-                  theta_gamma =  slopes,
+    dplyr::mutate(theta_alpha = c(BASELINE, summary_eachbm$meanslope[-1] / exp(summary_eachbm$slopes[-1] * GTA)),
+                  theta_beta = summary_eachbm$intercepts + theta_alpha * summary_eachbm$slopes,
+                  theta_gamma =  summary_eachbm$slopes,
                   omega_alpha = c(0, rep(0.0001, NUMBM - 1)),
                   omega_beta = c(0.0001, rep(0, NUMBM - 1)),
                   omega_gamma = c(0, rep(0.0001, NUMBM - 1)),
@@ -103,30 +93,25 @@ makeNmsheetMeanSimulation <- function (df) {
       dplyr::mutate(Biomarker = i) %>%
       tidyr::drop_na()
 
-    tmp_meanx <- aggregate(TIME~ID, data = tmp, FUN = mean) %>%
-      setNames(c("ID", paste0("meanx", i)))
-    tmp_meany <- aggregate(DV~ID, data = tmp, FUN = mean) %>%
-      setNames(c("ID", paste0("meany", i)))
-    tmp_count <- aggregate(DV~ID, data = tmp, FUN = length) %>%
-      setNames(c("ID", paste0("count", i)))
+    tmp_summary <- tmp %>%
+      dplyr::group_by(ID) %>%
+      dplyr::summarise(meanx = mean(TIME),
+                       meany = mean(DV),
+                       count = length(DV),
+                       .groups = "drop") %>%
+      setNames(c("ID", paste0(c("meanx", "meany", "count"), i)))
 
     if (i == 1) {
-      meanx <- tmp_meanx
-      meany <- tmp_meany
-      counts <- tmp_count
       output <- tmp
+      df_summary <- tmp_summary
     } else {
-      meanx <- merge(meanx, tmp_maenx, by = "ID", all = TRUE)
-      meany <- merge(meany, tmp_meany, by = "ID", all = TRUE)
-      counts <- merge(counts, tmp_count, by = "ID", all = TRUE)
       output <- rbind(output, tmp)
+      df_summary <- merge(df_summary, tmp_summary, by = "ID", all = TRUE)
     }
   }
 
-  output <- output %>%
-    merge(meanx, by = "ID") %>%
-    merge(meany, by = "ID") %>%
-    merge(counts, by = "ID")
+  output <- merge(output, df_summary, by = "ID") %>%
+    select(ID, TIME, DV, Biomarker, paste0(rep(c("meanx", "meany", "count"), each = NUMBM), 1:NUMBM))
 
   return(output)
 }
