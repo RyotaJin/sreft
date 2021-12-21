@@ -69,7 +69,7 @@ makeControlStreamSimulationTemplate <- function (init, nmsheet) {
     paste0("$ESTIMATION METHOD=1 MAXEVAL=99999 PRINT=1 NOABORT SIGDIGITS=2 FILE=iteration.csv NOTITLE=1\n")
   ctl["covariance"] <- "$COVARIANCE UNCONDITIONAL\n"
   ctl["table"] <-
-    paste0("$TABLE ID TIME BM DV PRED CIPRED CWRES\nNOPRINT FORMAT=,F10.5 FILE=table.csv ONEHEADER NOTITLE NOAPPEND")
+    paste0("$TABLE ID TIME BM DV \nNOPRINT FORMAT=,F10.5 FILE=table.csv ONEHEADER NOTITLE")
 
   return(ctl)
 }
@@ -117,14 +117,14 @@ makeNmsheetMeanSimulation <- function (df) {
 }
 
 
-makeSimulationDataSpread <- function (NUMSJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
+makeSimulationDataSpread <- function (NUMSJ, THETA, OMEGA, SIGMA, TIME = 0:4, range_offsetT = c(-5, 20)) {
   NUMBM <- length(THETA) / 3
 
   prms <- getParameterOfEachSubject(NUMSJ, THETA, OMEGA, SIGMA, range_offsetT)
 
   output <- expand.grid(ID = 1:NUMSJ,
                         Biomarker = 1:NUMBM,
-                        TIME = 0:4) %>%
+                        TIME = TIME) %>%
     merge(prms, by = "ID") %>%
     dplyr::mutate(TIME = TIME + offsetT) %>%
     dplyr::mutate(DV = apply(., 1, evalModelSimulation)) %>%
@@ -147,7 +147,7 @@ getParameterOfEachSubject <- function (NUMSJ, THETA, OMEGA, SIGMA, range_offsetT
     as.data.frame() %>%
     setNames(c(paste0(c("alpha", "beta", "gamma", "EPS") %>% rep(each = NUMBM), 1:NUMBM))) %>%
     dplyr::mutate(ID = 1:NUMSJ,
-           offsetT = runif(nrow(.), min = range_offsetT[1], max = range_offsetT[2])) %>%
+                  offsetT = runif(nrow(.), min = range_offsetT[1], max = range_offsetT[2])) %>%
     dplyr::select(ID, offsetT, everything())
 
   return(output)
@@ -190,7 +190,6 @@ SIGMA <- c(0.1, 0.1, 0.1)
 
 
 df <- makeSimulationDataSpread(NUMSJ, THETA, OMEGA, SIGMA)
-
 prms <- getParameterOfEachSubject(NUMSJ, THETA, OMEGA, SIGMA)
 
 nmsheet <- makeSimulationDataNmsheet(NUMSJ, THETA, OMEGA, SIGMA)
@@ -203,15 +202,10 @@ ctl <- makeControlStreamSimulationTemplate(init, nmsheet)
 # Observation generation -----------------------------------------------------------------------------
 
 
-DATA_TYPE <- "mean"
-PRED_TYPE <- paste0("old_ana_", DATA_TYPE)
-BASELINE <- THETA[1]
+
 PROC_TIME <- getProcessTime()
 
-
-init <- setInitialPrms(nmsheet)
-ctl <- makeControlStreamSimulation(init, nmsheet)
-
+ROOT <- "D:/Users/Ryota/OneDrive - 千葉大学/Project"
 DIR_PATH <- paste0(ROOT, "notes/", PROC_TIME, "_", DIR_NAME, "/")
 FILE_PATH <- paste0(DIR_PATH, PROC_TIME, "_")
 
@@ -220,5 +214,8 @@ dir.create(DIR_PATH)
 fwrite(nmsheet, paste0(FILE_PATH, "data.csv"))
 fwrite(init, paste0(FILE_PATH, "initialprms.csv"))
 cat(paste(ctl, collapse = "\n"), file = paste0(FILE_PATH, "control.txt"))
+
+DATA_TYPE <- "mean"
+PRED_TYPE <- paste0("old_ana_", DATA_TYPE)
 file.copy(from = paste0(ROOT, "src/pred/", PRED_TYPE, ".f90"), to = paste0(FILE_PATH, "pred_sreft.f90"))
 
