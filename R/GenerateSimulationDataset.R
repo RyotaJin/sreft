@@ -20,7 +20,7 @@ intercept <- function (x, y) {
   return(mean(y) - slope(x, y) * mean(x))
 }
 
-estimatecInitialParameter <- function (nmsheet, BASELINE, GTA = 10) {
+estimateInitialParameter <- function (nmsheet, BASELINE, GTA = 10) {
   NUM_BM <- nmsheet$Biomarker %>% max()
 
   summary_eachbm <- nmsheet %>%
@@ -47,8 +47,6 @@ estimatecInitialParameter <- function (nmsheet, BASELINE, GTA = 10) {
 }
 
 makeControlStreamSimulationTemplate <- function (init, nmsheet) {
-  NUM_BM <- nrow(init)
-
   ctl <- list()
 
   ctl["problem"] <- paste0("$PROBLEM simulation\n")
@@ -57,7 +55,7 @@ makeControlStreamSimulationTemplate <- function (init, nmsheet) {
   ctl["subroutine"] <- paste0("$SUBROUTINE PRED=pred_sreft.f90\n")
   ctl["theta"] <- paste0("$THETA\n" ,
                          paste(init[1, "theta_alpha"], "FIXED",
-                               paste(init[2:NUM_BM, "theta_alpha"], collapse = " ")), "\n",
+                               paste(init[-1, "theta_alpha"], collapse = " ")), "\n",
                          paste(init[, "theta_beta"], collapse = " "), "\n",
                          paste(init[, "theta_gamma"], collapse = " "), "\n")
   ctl["omega"] <- paste0("$OMEGA\n",
@@ -77,14 +75,49 @@ makeControlStreamSimulationTemplate <- function (init, nmsheet) {
 makeSimulationNonmemData <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
   simulation_data_spread <- makeSimulationDataSpread(NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT)
 
-  output <- convertSpreadDataToNonmemData(simulation_data_spread) %>%
+  output <- convertSpreadDataToNonmemDataMean(simulation_data_spread) %>%
     dplyr::select(ID, TIME, Biomarker, DV, everything()) %>%
     dplyr::arrange(ID, Biomarker, TIME)
 
   return(output)
 }
 
-convertSpreadDataToNonmemData <- function (df_input) {
+makeSimulationDataSpread <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, TIME = 0:4, range_offsetT = c(-5, 20)) {
+  NUM_BM <- length(THETA) / 3
+
+  params <- getParameterOfEachSubject(NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT)
+
+  output <- expand.grid(ID = 1:NUM_SUBJ,
+                        Biomarker = 1:NUM_BM,
+                        TIME = TIME) %>%
+    merge(params, by = "ID") %>%
+    dplyr::mutate(TIME = TIME + offsetT) %>%
+    dplyr::mutate(DV = apply(., 1, evalModelSimulation)) %>%
+    dplyr::select(ID, TIME, DV, Biomarker) %>%
+    tidyr::spread(key = Biomarker, value = DV) %>%
+    setNames(c("ID", "TIME", paste0("Biomarker", 1:NUM_BM)))
+
+  return(output)
+}
+
+getParameterOfEachSubject <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
+  NUM_BM <- length(THETA) / 3
+
+  ETA <- MASS::mvrnorm(NUM_SUBJ, numeric(length(OMEGA)), diag(OMEGA))
+  EPS <- MASS::mvrnorm(NUM_SUBJ, numeric(length(SIGMA)), diag(SIGMA))
+
+  output <- (THETA + t(ETA)) %>%
+    t() %>%
+    cbind(EPS) %>%
+    as.data.frame() %>%
+    setNames(paste0(rep(c("alpha", "beta", "gamma", "EPS"), each = NUM_BM), 1:NUM_BM)) %>%
+    dplyr::mutate(ID = 1:NUM_SUBJ,
+                  offsetT = runif(nrow(.), min = range_offsetT[1], max = range_offsetT[2]))
+
+  return(output)
+}
+
+convertSpreadDataToNonmemDataMean <- function (df_input) {
   NUM_BM <- ncol(df_input) - 2
   output <- NULL
   df_summary <- df_input %>% distinct(ID)
@@ -113,53 +146,16 @@ convertSpreadDataToNonmemData <- function (df_input) {
   return(output)
 }
 
-
-makeSimulationDataSpread <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, TIME = 0:4, range_offsetT = c(-5, 20)) {
-  NUM_BM <- length(THETA) / 3
-
-  prms <- getParameterOfEachSubject(NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT)
-
-  output <- expand.grid(ID = 1:NUM_SUBJ,
-                        Biomarker = 1:NUM_BM,
-                        TIME = TIME) %>%
-    merge(prms, by = "ID") %>%
-    dplyr::mutate(TIME = TIME + offsetT) %>%
-    dplyr::mutate(DV = apply(., 1, evalModelSimulation)) %>%
-    dplyr::select(ID, TIME, DV, Biomarker) %>%
-    tidyr::spread(key = Biomarker, value = DV) %>%
-    setNames(c("ID", "TIME", paste0("Biomarker", 1:NUM_BM)))
-
-  return(output)
-}
-
-getParameterOfEachSubject <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
-  NUM_BM <- length(THETA) / 3
-
-  ETA <- MASS::mvrnorm(NUM_SUBJ, numeric(length(OMEGA)), diag(OMEGA))
-  EPS <- MASS::mvrnorm(NUM_SUBJ, numeric(length(SIGMA)), diag(SIGMA))
-
-  output <- (THETA + t(ETA)) %>%
-    t() %>%
-    cbind(EPS) %>%
-    as.data.frame() %>%
-    setNames(c(paste0(c("alpha", "beta", "gamma", "EPS") %>% rep(each = NUM_BM), 1:NUM_BM))) %>%
-    dplyr::mutate(ID = 1:NUM_SUBJ,
-                  offsetT = runif(nrow(.), min = range_offsetT[1], max = range_offsetT[2])) %>%
-    dplyr::select(ID, offsetT, everything())
-
-  return(output)
-}
-
 evalModelSimulation <- function (x) {
-  prms_time  <- x["TIME"]
-  prms_bm    <- x["Biomarker"]
-  prms_alpha <- x[paste0("alpha", prms_bm)]
-  prms_beta  <- x[paste0("beta", prms_bm)]
-  prms_gamma <- x[paste0("gamma", prms_bm)]
-  prms_eps <- x[paste0("EPS", prms_bm)]
+  params_time  <- x["TIME"]
+  params_bm    <- x["Biomarker"]
+  params_alpha <- x[paste0("alpha", params_bm)]
+  params_beta  <- x[paste0("beta", params_bm)]
+  params_gamma <- x[paste0("gamma", params_bm)]
+  params_eps <- x[paste0("EPS", params_bm)]
 
-  output <- prms_alpha + (prms_beta / prms_gamma) * (exp(prms_gamma * prms_time) - 1)
-  output <- output + prms_eps
+  output <- params_alpha + (params_beta / params_gamma) * (exp(params_gamma * params_time) - 1)
+  output <- output + params_eps
 
   return(output)
 }
@@ -187,11 +183,11 @@ SIGMA <- c(0.1, 0.1, 0.1)
 
 
 df <- makeSimulationDataSpread(NUM_SUBJ, THETA, OMEGA, SIGMA)
-prms <- getParameterOfEachSubject(NUM_SUBJ, THETA, OMEGA, SIGMA)
+params <- getParameterOfEachSubject(NUM_SUBJ, THETA, OMEGA, SIGMA)
 
 nmsheet <- makeSimulationNonmemData(NUM_SUBJ, THETA, OMEGA, SIGMA)
 
-init <- estimatecInitialParameter(nmsheet, THETA[1])
+init <- estimateInitialParameter(nmsheet, THETA[1])
 
 ctl <- makeControlStreamSimulationTemplate(init, nmsheet)
 
@@ -209,7 +205,7 @@ FILE_PATH <- paste0(DIR_PATH, PROC_TIME, "_")
 dir.create(DIR_PATH)
 
 fwrite(nmsheet, paste0(FILE_PATH, "data.csv"))
-fwrite(init, paste0(FILE_PATH, "initialprms.csv"))
+fwrite(init, paste0(FILE_PATH, "initialparams.csv"))
 cat(paste(ctl, collapse = "\n"), file = paste0(FILE_PATH, "control.txt"))
 
 DATA_TYPE <- "mean"
