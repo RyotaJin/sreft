@@ -21,7 +21,7 @@ intercept <- function (x, y) {
 }
 
 estimatecInitialParameter <- function (nmsheet, BASELINE, GTA = 10) {
-  NUMBM <- nmsheet$Biomarker %>% max()
+  NUM_BM <- nmsheet$Biomarker %>% max()
 
   summary_eachbm <- nmsheet %>%
     dplyr::group_by(ID, Biomarker) %>%
@@ -34,20 +34,20 @@ estimatecInitialParameter <- function (nmsheet, BASELINE, GTA = 10) {
                      meanslope = mean(Slope),
                      .groups = "drop")
 
-  output <- data.frame(Biomarker = paste0("Biomarker", 1:NUMBM)) %>%
+  output <- data.frame(Biomarker = paste0("Biomarker", 1:NUM_BM)) %>%
     dplyr::mutate(theta_alpha = c(BASELINE, summary_eachbm$meanslope[-1] / exp(summary_eachbm$slopes[-1] * GTA)),
                   theta_beta = summary_eachbm$intercepts + theta_alpha * summary_eachbm$slopes,
                   theta_gamma =  summary_eachbm$slopes,
-                  omega_alpha = c(0, rep(0.0001, NUMBM - 1)),
-                  omega_beta = c(0.0001, rep(0, NUMBM - 1)),
-                  omega_gamma = c(0, rep(0.0001, NUMBM - 1)),
+                  omega_alpha = c(0, rep(0.0001, NUM_BM - 1)),
+                  omega_beta = c(0.0001, rep(0, NUM_BM - 1)),
+                  omega_gamma = c(0, rep(0.0001, NUM_BM - 1)),
                   sigma = 0.01)
 
   return(output)
 }
 
 makeControlStreamSimulationTemplate <- function (init, nmsheet) {
-  NUMBM <- nrow(init)
+  NUM_BM <- nrow(init)
 
   ctl <- list()
 
@@ -57,7 +57,7 @@ makeControlStreamSimulationTemplate <- function (init, nmsheet) {
   ctl["subroutine"] <- paste0("$SUBROUTINE PRED=pred_sreft.f90\n")
   ctl["theta"] <- paste0("$THETA\n" ,
                          paste(init[1, "theta_alpha"], "FIXED",
-                               paste(init[2:NUMBM, "theta_alpha"], collapse = " ")), "\n",
+                               paste(init[2:NUM_BM, "theta_alpha"], collapse = " ")), "\n",
                          paste(init[, "theta_beta"], collapse = " "), "\n",
                          paste(init[, "theta_gamma"], collapse = " "), "\n")
   ctl["omega"] <- paste0("$OMEGA\n",
@@ -74,26 +74,28 @@ makeControlStreamSimulationTemplate <- function (init, nmsheet) {
   return(ctl)
 }
 
-makeSimulationDataNmsheet <- function (NUMSJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
-  simulation_data_spread <- makeSimulationDataSpread(NUMSJ, THETA, OMEGA, SIGMA, range_offsetT)
+makeSimulationNonmemData <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
+  simulation_data_spread <- makeSimulationDataSpread(NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT)
 
-  output <- makeNmsheetMeanSimulation(simulation_data_spread) %>%
+  output <- convertSpreadDataToNonmemData(simulation_data_spread) %>%
     dplyr::select(ID, TIME, Biomarker, DV, everything()) %>%
     dplyr::arrange(ID, Biomarker, TIME)
 
   return(output)
 }
 
-makeNmsheetMeanSimulation <- function (df) {
-  NUMBM <- ncol(df) - 2
+convertSpreadDataToNonmemData <- function (df_input) {
+  NUM_BM <- ncol(df_input) - 2
+  output <- NULL
+  df_summary <- df_input %>% distinct(ID)
 
-  for (i in 1:NUMBM) {
-    tmp <- df %>%
+  for (i in 1:NUM_BM) {
+    temp <- df_input %>%
       dplyr::select(ID, TIME, DV = paste0("Biomarker", i)) %>%
       dplyr::mutate(Biomarker = i) %>%
       tidyr::drop_na()
 
-    tmp_summary <- tmp %>%
+    temp_summary <- temp %>%
       dplyr::group_by(ID) %>%
       dplyr::summarise(meanx = mean(TIME),
                        meany = mean(DV),
@@ -101,52 +103,47 @@ makeNmsheetMeanSimulation <- function (df) {
                        .groups = "drop") %>%
       setNames(c("ID", paste0(c("meanx", "meany", "count"), i)))
 
-    if (i == 1) {
-      output <- tmp
-      df_summary <- tmp_summary
-    } else {
-      output <- rbind(output, tmp)
-      df_summary <- merge(df_summary, tmp_summary, by = "ID", all = TRUE)
-    }
+    output <- rbind(output, temp)
+    df_summary <- merge(df_summary, temp_summary, by = "ID", all = TRUE)
   }
 
   output <- merge(output, df_summary, by = "ID") %>%
-    select(ID, TIME, DV, Biomarker, paste0(rep(c("meanx", "meany", "count"), each = NUMBM), 1:NUMBM))
+    select(ID, TIME, DV, Biomarker, paste0(rep(c("meanx", "meany", "count"), each = NUM_BM), 1:NUM_BM))
 
   return(output)
 }
 
 
-makeSimulationDataSpread <- function (NUMSJ, THETA, OMEGA, SIGMA, TIME = 0:4, range_offsetT = c(-5, 20)) {
-  NUMBM <- length(THETA) / 3
+makeSimulationDataSpread <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, TIME = 0:4, range_offsetT = c(-5, 20)) {
+  NUM_BM <- length(THETA) / 3
 
-  prms <- getParameterOfEachSubject(NUMSJ, THETA, OMEGA, SIGMA, range_offsetT)
+  prms <- getParameterOfEachSubject(NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT)
 
-  output <- expand.grid(ID = 1:NUMSJ,
-                        Biomarker = 1:NUMBM,
+  output <- expand.grid(ID = 1:NUM_SUBJ,
+                        Biomarker = 1:NUM_BM,
                         TIME = TIME) %>%
     merge(prms, by = "ID") %>%
     dplyr::mutate(TIME = TIME + offsetT) %>%
     dplyr::mutate(DV = apply(., 1, evalModelSimulation)) %>%
     dplyr::select(ID, TIME, DV, Biomarker) %>%
     tidyr::spread(key = Biomarker, value = DV) %>%
-    setNames(c("ID", "TIME", paste0("Biomarker", 1:NUMBM)))
+    setNames(c("ID", "TIME", paste0("Biomarker", 1:NUM_BM)))
 
   return(output)
 }
 
-getParameterOfEachSubject <- function (NUMSJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
-  NUMBM <- length(THETA) / 3
+getParameterOfEachSubject <- function (NUM_SUBJ, THETA, OMEGA, SIGMA, range_offsetT = c(-5, 20)) {
+  NUM_BM <- length(THETA) / 3
 
-  ETA <- MASS::mvrnorm(NUMSJ, numeric(length(OMEGA)), diag(OMEGA))
-  EPS <- MASS::mvrnorm(NUMSJ, numeric(length(SIGMA)), diag(SIGMA))
+  ETA <- MASS::mvrnorm(NUM_SUBJ, numeric(length(OMEGA)), diag(OMEGA))
+  EPS <- MASS::mvrnorm(NUM_SUBJ, numeric(length(SIGMA)), diag(SIGMA))
 
   output <- (THETA + t(ETA)) %>%
     t() %>%
     cbind(EPS) %>%
     as.data.frame() %>%
-    setNames(c(paste0(c("alpha", "beta", "gamma", "EPS") %>% rep(each = NUMBM), 1:NUMBM))) %>%
-    dplyr::mutate(ID = 1:NUMSJ,
+    setNames(c(paste0(c("alpha", "beta", "gamma", "EPS") %>% rep(each = NUM_BM), 1:NUM_BM))) %>%
+    dplyr::mutate(ID = 1:NUM_SUBJ,
                   offsetT = runif(nrow(.), min = range_offsetT[1], max = range_offsetT[2])) %>%
     dplyr::select(ID, offsetT, everything())
 
@@ -173,7 +170,7 @@ evalModelSimulation <- function (x) {
 
 DIR_NAME <- "simulation"
 
-NUMSJ <- 3
+NUM_SUBJ <- 3
 
 THETA <- c(1.5, -2, 2,
            -0.20, 0.05, -0.10,
@@ -189,10 +186,10 @@ SIGMA <- c(0.1, 0.1, 0.1)
 # Parameter generation -------------------------------------------------------------------------------
 
 
-df <- makeSimulationDataSpread(NUMSJ, THETA, OMEGA, SIGMA)
-prms <- getParameterOfEachSubject(NUMSJ, THETA, OMEGA, SIGMA)
+df <- makeSimulationDataSpread(NUM_SUBJ, THETA, OMEGA, SIGMA)
+prms <- getParameterOfEachSubject(NUM_SUBJ, THETA, OMEGA, SIGMA)
 
-nmsheet <- makeSimulationDataNmsheet(NUMSJ, THETA, OMEGA, SIGMA)
+nmsheet <- makeSimulationNonmemData(NUM_SUBJ, THETA, OMEGA, SIGMA)
 
 init <- estimatecInitialParameter(nmsheet, THETA[1])
 
