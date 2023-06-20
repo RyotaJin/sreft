@@ -1,7 +1,3 @@
-library(dplyr)
-library(readr)
-library(tidyr)
-
 #' Score Converter
 #'
 #' This function takes a vector of values and a maximum value as inputs, and performs a score conversion.
@@ -22,6 +18,53 @@ scoreConverter <- function (x_vec, max) {
   output <- (x_vec + 0.5) / (max + 1)
   output <- output / (1 - output)
   return(output)
+}
+
+
+lognormConverter <- function (df, selected_bm, XMAX) {
+  output <- df[selected_bm]
+  min_values <- output %>% apply(2, min, na.rm = TRUE)
+  under_zero_indices <- which(min_values <= 0)
+
+  if (any(min_values <= 0 & XMAX[under_zero_indices] <= 0)) {
+    biomarkers_with_issue <- selected_bm[min_values <= 0 & XMAX <= 0]
+    message_ <- paste(biomarkers_with_issue, collapse = ", ") %>%
+      paste("has values under 0, but appropriate XMAX was not supplied. Please provide XMAX or convert the values before passing them to this function.")
+    stop(message_)
+  } else {
+    if (any(under_zero_indices)) {
+      df[names(under_zero_indices)] <- mapply(scoreConverter, df[names(under_zero_indices)], XMAX[under_zero_indices])
+    }
+    output <- log(output)
+    output <- apply(output, 2, scale)
+  }
+  return(output)
+}
+
+
+slope <- function (x, y) {
+  if (length(x) != length(y)) {
+    stop("x and y is not same length!")
+  }
+
+  x_ <- x[!is.na(x) & !is.na(y)]
+  y_ <- y[!is.na(x) & !is.na(y)]
+
+  if (length(x_) < 2 | sd(x_) == 0) {
+    return(NA)
+  }
+  if (sd(y_) == 0) {
+    return(0)
+  }
+  return(cor(y_, x_) * (sd(y_) / sd(x_)))
+}
+
+
+intercept <- function (x, y) {
+  x_ <- x[!is.na(x) & !is.na(y)]
+  y_ <- y[!is.na(x) & !is.na(y)]
+
+  return(mean(y_) - slope(x_, y_) * mean(x_))
 }
 
 
@@ -47,105 +90,96 @@ scoreConverter <- function (x_vec, max) {
 #'
 #' @export
 makeNonmemSheet <- function (df, selected_bm, selected_cov, XMAX = NULL, lognorm = TRUE){
+  output <- df
   if (lognorm) {
-    min_values <- df[selected_bm] %>% apply(2, min, na.rm = TRUE)
-    under_zero_indices <- which(min_values <= 0)
-
-    if (any(min_values <= 0 & XMAX[under_zero_indices] <= 0)) {
-      biomarkers_with_issue <- selected_bm[min_values <= 0 & XMAX <= 0]
-      message_ <- paste(biomarkers_with_issue, collapse = ", ") %>%
-        paste("has values under 0, but appropriate XMAX was not supplied. Please provide XMAX or convert the values before passing them to this function.")
-      stop(message_)
-    } else {
-      if (any(under_zero_indices)) {
-        df[names(under_zero_indices)] <- mapply(scoreConverter, df[names(under_zero_indices)], XMAX[under_zero_indices])
-      }
-      df[selected_bm] <- log(df[selected_bm])
-      df[selected_bm] <- apply(df[selected_bm], 2, scale)
-    }
+    output[selected_bm] <- lognormConverter(df, selected_bm, XMAX)
   }
 
   numbm <- length(selected_bm)
 
   meanxs <- lapply(selected_bm, function (col) {
-    df %>%
-      filter(!is.na(!!sym({{col}}))) %>%
-      group_by(ID) %>%
-      summarise(meanx = mean(TIME))
+    output %>%
+      dplyr::filter(!is.na(!!dplyr::sym({{col}}))) %>%
+      dplyr::group_by(ID) %>%
+      dplyr::summarise(meanx = mean(TIME))
   }) %>%
-    bind_rows(.id = "Biomarker") %>%
-    spread(key = Biomarker, value = meanx) %>%
+    dplyr::bind_rows(.id = "Biomarker") %>%
+    tidyr::spread(key = Biomarker, value = meanx) %>%
     setNames(c("ID", paste0("MeanX", 1:numbm)))
 
-  meanys <- df %>%
-    group_by(ID) %>%
-    summarise(across(all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
+  meanys <- output %>%
+    dplyr::group_by(ID) %>%
+    dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
     setNames(c("ID", paste0("MeanY", 1:numbm)))
 
-  counts <- df %>%
-    group_by(ID) %>%
-    summarise(across(all_of(selected_bm), \ (x) sum(!is.na(x)))) %>%
+  counts <- output %>%
+    dplyr::group_by(ID) %>%
+    dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) sum(!is.na(x)))) %>%
     setNames(c("ID", paste0("Count", 1:numbm)))
 
-  df_output <- df %>%
-    select(ID, TIME, all_of(selected_bm), all_of(selected_cov)) %>%
+  output <- output %>%
+    dplyr::select(ID, TIME, dplyr::all_of(selected_bm), dplyr::all_of(selected_cov)) %>%
     merge(meanxs) %>%
     merge(meanys) %>%
     merge(counts) %>%
-    gather("CMT_name", "DV", all_of(selected_bm)) %>%
-    drop_na(DV) %>%
-    mutate(CMT = match(CMT_name, (selected_bm))) %>%
-    select(ID, TIME, CMT, CMT_name, DV, everything()) %>%
-    arrange(ID, CMT, TIME)
+    tidyr::gather("CMT_name", "DV", dplyr::all_of(selected_bm)) %>%
+    tidyr::drop_na(DV) %>%
+    dplyr::mutate(CMT = match(CMT_name, (selected_bm))) %>%
+    dplyr::select(ID, TIME, CMT, CMT_name, DV, dplyr::everything()) %>%
+    dplyr::arrange(ID, CMT, TIME)
 
-  return(df_output)
+  return(output)
 }
 
-
-setInitialPrms <- function (df, selected_bm, XMAX, definition_bm, definition_value, estimated_mean_offsetT = 10, lognorm = TRUE) {
+#' Set Initial Parameters
+#'
+#' This function sets the initial parameters based on the given data frame and biomarker information.
+#'
+#' @param df The data frame containing the biomarker data.
+#' @param selected_bm A character vector specifying the selected biomarkers.
+#' @param definition_bm The biomarker used for definition.
+#' @param definition_value The value used for the definition of the biomarker.
+#' @param XMAX An optional parameter specifying the maximum value for log-normal conversion.
+#' @param estimated_mean_offsetT The estimated mean offset.
+#' @param lognorm Logical value indicating whether log-normal conversion should be applied.
+#'
+#' @return A data frame containing the calculated initial parameters.
+#'
+#' @examples
+#' setInitialPrms(df, selected_bm, definition_bm, definition_value)
+#'
+#' @export
+setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XMAX = NULL, estimated_mean_offsetT = 10, lognorm = TRUE) {
+  df_ <- df
   if (lognorm) {
-    min_values <- df[selected_bm] %>% apply(2, min, na.rm = TRUE)
-    under_zero_indices <- which(min_values <= 0)
-
-    if (any(min_values <= 0 & XMAX[under_zero_indices] <= 0)) {
-      biomarkers_with_issue <- selected_bm[min_values <= 0 & XMAX <= 0]
-      message_ <- paste(biomarkers_with_issue, collapse = ", ") %>%
-        paste("has values under 0, but appropriate XMAX was not supplied. Please provide XMAX or convert the values before passing them to this function.")
-      stop(message_)
-    } else {
-      if (any(under_zero_indices)) {
-        df[names(under_zero_indices)] <- mapply(scoreConverter, df[names(under_zero_indices)], XMAX[under_zero_indices])
-      }
-      df[selected_bm] <- log(df[selected_bm])
-      df[selected_bm] <- apply(df[selected_bm], 2, scale)
-    }
+    df_[selected_bm] <- lognormConverter(df_, selected_bm, XMAX)
   }
 
   numbm <- length(selected_bm)
 
   slopes <- lapply(selected_bm, function (col) {
-    df %>%
-      group_by(ID) %>%
-      summarise(slope = slope(TIME, !!sym({{col}})))
+    df_ %>%
+      dplyr::group_by(ID) %>%
+      dplyr::summarise(slope = slope(TIME, !!dplyr::sym({{col}})))
   }) %>%
-    bind_rows(.id = "Biomarker") %>%
-    mutate(Biomarker = as.numeric(Biomarker))
+    dplyr::bind_rows(.id = "Biomarker") %>%
+    dplyr::mutate(Biomarker = as.numeric(Biomarker))
 
-  meanys <- df %>%
-    group_by(ID) %>%
-    summarise(across(all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
-    gather("Biomarker", "meany", -ID) %>%
-    mutate(Biomarker = match(Biomarker, selected_bm))
+  meanys <- df_ %>%
+    dplyr::group_by(ID) %>%
+    dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
+    tidyr::gather("Biomarker", "meany", -ID) %>%
+    dplyr::mutate(Biomarker = match(Biomarker, selected_bm))
 
   .Mean_sp  <- split(meanys$meany, meanys$Biomarker)
   .Slope_sp <- split(slopes$slope, slopes$Biomarker)
 
   output <- data.frame(Biomarker = selected_bm) %>%
-    mutate(slope = mapply(slope, .Mean_sp, .Slope_sp),
+    dplyr::mutate(slope = mapply(slope, .Mean_sp, .Slope_sp),
            intercept = mapply(intercept, .Mean_sp, .Slope_sp),
            meanslope = mapply(mean, .Slope_sp, na.rm = TRUE),
-           ave = apply(df[selected_bm], 2, mean, na.rm = TRUE),
-           sd = apply(df[selected_bm], 2, sd, na.rm = TRUE),
+           ave = apply(df_[selected_bm], 2, mean, na.rm = TRUE),
+           sd = apply(df_[selected_bm], 2, sd, na.rm = TRUE),
            omega_α = 0.0001,
            omega_β = 0,
            omega_γ = 0.0001,
@@ -165,37 +199,3 @@ setInitialPrms <- function (df, selected_bm, XMAX, definition_bm, definition_val
   output[, -1] <- signif(output[, -1], digits = 5)
   return(output)
 }
-
-slope <- function (x, y) {
-  if (length(x) != length(y)) {
-    stop("x and y is not same length!")
-  }
-
-  x_ <- x[!is.na(x) & !is.na(y)]
-  y_ <- y[!is.na(x) & !is.na(y)]
-
-  if (length(x_) < 2 | sd(x_) == 0) {
-    return(NA)
-  }
-  if (sd(y_) == 0) {
-    return(0)
-  }
-  return(cor(y_, x_) * (sd(y_) / sd(x_)))
-}
-
-intercept <- function (x, y) {
-  x_ <- x[!is.na(x) & !is.na(y)]
-  y_ <- y[!is.na(x) & !is.na(y)]
-
-  return(mean(y_) - slope(x_, y_) * mean(x_))
-}
-
-
-# df <- read_csv("C:/Users/ryota/OneDrive - 千葉大学/Project_ml/data/SOLVD/data_solvd_bbc0cea45017694b6792961a26ade527730acb92.csv") %>%
-#   rename(TIME = vTIME_y)
-#
-# nmsheet <- makeNonmemSheet(df = df,
-#                            selected_bm = c("WBC", "BUN", "Na", "SBP", "DBP"),
-#                            selected_cov = c("ALLD"))
-#
-# write_csv(nmsheet, "test.csv", na = ".")
