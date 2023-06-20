@@ -4,3 +4,7 @@
 #                            selected_bm = c("WBC", "BUN", "Na", "SBP", "DBP"),
 #                            selected_cov = c("ALLD"),
 #                            lognorm = TRUE)
+# int_prms <- setInitialPrms(df = df,
+#                selected_bm = c("WBC", "BUN", "Na", "SBP", "DBP"),
+#                definition_bm = "Na",
+#                definition_value = 130)

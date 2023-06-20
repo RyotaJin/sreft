@@ -131,8 +131,25 @@ makeNonmemSheet <- function (df, selected_bm, selected_cov, XMAX = NULL, lognorm
   return(output)
 }
 
-
-setInitialPrms <- function (df, selected_bm, XMAX, definition_bm, definition_value, estimated_mean_offsetT = 10, lognorm = TRUE) {
+#' Set Initial Parameters
+#'
+#' This function sets the initial parameters based on the given data frame and biomarker information.
+#'
+#' @param df The data frame containing the biomarker data.
+#' @param selected_bm A character vector specifying the selected biomarkers.
+#' @param definition_bm The biomarker used for definition.
+#' @param definition_value The value used for the definition of the biomarker.
+#' @param XMAX An optional parameter specifying the maximum value for log-normal conversion.
+#' @param estimated_mean_offsetT The estimated mean offset.
+#' @param lognorm Logical value indicating whether log-normal conversion should be applied.
+#'
+#' @return A data frame containing the calculated initial parameters.
+#'
+#' @examples
+#' setInitialPrms(df, selected_bm, definition_bm, definition_value)
+#'
+#' @export
+setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XMAX = NULL, estimated_mean_offsetT = 10, lognorm = TRUE) {
   df_ <- df
   if (lognorm) {
     df_[selected_bm] <- lognormConverter(df_, selected_bm, XMAX)
@@ -143,7 +160,7 @@ setInitialPrms <- function (df, selected_bm, XMAX, definition_bm, definition_val
   slopes <- lapply(selected_bm, function (col) {
     df_ %>%
       dplyr::group_by(ID) %>%
-      dplyr::summarise(slope = slope(TIME, !!sym({{col}})))
+      dplyr::summarise(slope = slope(TIME, !!dplyr::sym({{col}})))
   }) %>%
     dplyr::bind_rows(.id = "Biomarker") %>%
     dplyr::mutate(Biomarker = as.numeric(Biomarker))
@@ -151,7 +168,7 @@ setInitialPrms <- function (df, selected_bm, XMAX, definition_bm, definition_val
   meanys <- df_ %>%
     dplyr::group_by(ID) %>%
     dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
-    gather("Biomarker", "meany", -ID) %>%
+    tidyr::gather("Biomarker", "meany", -ID) %>%
     dplyr::mutate(Biomarker = match(Biomarker, selected_bm))
 
   .Mean_sp  <- split(meanys$meany, meanys$Biomarker)
