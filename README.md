@@ -1,10 +1,6 @@
 
 # sreft
-
-<!-- badges: start -->
-<!-- badges: end -->
-
-The goal of sreft is to ...
+This repository is a set of tools for pre-processing data needed to run SReFT. It does not perform the analysis itself.
 
 ## Installation
 
@@ -14,13 +10,3 @@ You can install the development version of sreft from [GitHub](https://github.co
 # install.packages("devtools")
 devtools::install_github("CPP-256/sreft")
 ```
-
-## Example
-
-This is a basic example which shows you how to solve a common problem:
-
-``` r
-library(sreft)
-## basic example code
-```
-
