@@ -8,7 +8,6 @@ Description: This package contains functions to preprocess data for SReFT
     or Napp, which are not supported by this package.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 RoxygenNote: 7.2.3
 Suggests: 
     testthat (>= 3.0.0)
