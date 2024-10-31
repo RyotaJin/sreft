@@ -1,14 +1,13 @@
 Package: sreft
 Title: Utility tools for SReFT
 Version: 0.1.0
-Author@R: person(given = "Ryota", family = "Jin", email = "ryota-j@chiba-u.jp", role = c("aut", "cre"))
+Author@R: person(given = "Ryota", family = "Jin", role = c("aut", "cre"))
 Description: This package contains functions to preprocess data for SReFT
     (Statistical Restoration of Fragmented Time course) analysis and to plot
     the data after the SReFT analysis.SReFT analysis itself requires NONMEM
     or Napp, which are not supported by this package.
-License: GPL (>=3)
+License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
 RoxygenNote: 7.2.3
 Suggests: 
     testthat (>= 3.0.0)
