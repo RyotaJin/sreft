@@ -8,5 +8,5 @@ You can install the development version of sreft from [GitHub](https://github.co
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("CPP-256/sreft")
+devtools::install_github("RyotaJin/sreft")
 ```
