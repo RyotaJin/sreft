@@ -8,10 +8,10 @@ Description: This package contains functions to preprocess data for SReFT
     or Napp, which are not supported by this package.
 License: MIT + file LICENSE
 Encoding: UTF-8
-RoxygenNote: 7.2.3
-Suggests: 
-    testthat (>= 3.0.0)
+RoxygenNote: 7.3.2
 Config/testthat/edition: 3
 Imports: 
     dplyr,
+    magrittr,
+    rlang,
     tidyr

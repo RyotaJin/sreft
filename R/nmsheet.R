@@ -99,34 +99,31 @@ makeNonmemSheet <- function (df, selected_bm, selected_cov, XMAX = NULL, lognorm
 
   meanxs <- lapply(selected_bm, function (col) {
     output %>%
-      dplyr::filter(!is.na(!!dplyr::sym({{col}}))) %>%
-      dplyr::group_by(ID) %>%
-      dplyr::summarise(meanx = mean(TIME))
+      filter(!is.na(!!sym({{col}}))) %>%
+      summarise(meanx = mean(TIME), .by = ID)
   }) %>%
-    dplyr::bind_rows(.id = "Biomarker") %>%
-    tidyr::spread(key = Biomarker, value = meanx) %>%
+    bind_rows(.id = "Biomarker") %>%
+    pivot_wider(names_from  = Biomarker, values_from = meanx) %>%
     setNames(c("ID", paste0("MeanX", 1:numbm)))
 
   meanys <- output %>%
-    dplyr::group_by(ID) %>%
-    dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
+    summarise(across(all_of(selected_bm), \ (x) mean(x, na.rm = TRUE)), .by = ID) %>%
     setNames(c("ID", paste0("MeanY", 1:numbm)))
 
   counts <- output %>%
-    dplyr::group_by(ID) %>%
-    dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) sum(!is.na(x)))) %>%
+    summarise(across(all_of(selected_bm), \ (x) sum(!is.na(x))), .by = ID) %>%
     setNames(c("ID", paste0("Count", 1:numbm)))
 
   output <- output %>%
-    dplyr::select(ID, TIME, dplyr::all_of(selected_bm), dplyr::all_of(selected_cov)) %>%
+    select(ID, TIME, all_of(selected_bm), all_of(selected_cov)) %>%
     merge(meanxs) %>%
     merge(meanys) %>%
     merge(counts) %>%
-    tidyr::gather("CMT_name", "DV", dplyr::all_of(selected_bm)) %>%
-    tidyr::drop_na(DV) %>%
-    dplyr::mutate(CMT = match(CMT_name, (selected_bm))) %>%
-    dplyr::select(ID, TIME, CMT, CMT_name, DV, dplyr::everything()) %>%
-    dplyr::arrange(ID, CMT, TIME)
+    pivot_longer(cols = all_of(selected_bm), names_to = "CMT_name", values_to = "DV") %>%
+    drop_na(DV) %>%
+    mutate(CMT = match(CMT_name, (selected_bm))) %>%
+    select(ID, TIME, CMT, CMT_name, DV, everything()) %>%
+    arrange(ID, CMT, TIME)
 
   return(output)
 }
@@ -159,23 +156,21 @@ setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XM
 
   slopes <- lapply(selected_bm, function (col) {
     df_ %>%
-      dplyr::group_by(ID) %>%
-      dplyr::summarise(slope = slope(TIME, !!dplyr::sym({{col}})))
+      summarise(slope = slope(TIME, !!sym({{col}})), .by = ID)
   }) %>%
-    dplyr::bind_rows(.id = "Biomarker") %>%
-    dplyr::mutate(Biomarker = as.numeric(Biomarker))
+    bind_rows(.id = "Biomarker") %>%
+    mutate(Biomarker = as.numeric(Biomarker))
 
   meanys <- df_ %>%
-    dplyr::group_by(ID) %>%
-    dplyr::summarise(dplyr::across(dplyr::all_of(selected_bm), \ (x) mean(x, na.rm = TRUE))) %>%
-    tidyr::gather("Biomarker", "meany", -ID) %>%
-    dplyr::mutate(Biomarker = match(Biomarker, selected_bm))
+    summarise(across(all_of(selected_bm), \ (x) mean(x, na.rm = TRUE)), .by = ID) %>%
+    pivot_longer(cols = -ID, names_to = "Biomarker", values_to = "meany") %>%
+    mutate(Biomarker = match(Biomarker, selected_bm))
 
   .Mean_sp  <- split(meanys$meany, meanys$Biomarker)
   .Slope_sp <- split(slopes$slope, slopes$Biomarker)
 
   output <- data.frame(Biomarker = selected_bm) %>%
-    dplyr::mutate(slope = mapply(slope, .Mean_sp, .Slope_sp),
+    mutate(slope = mapply(slope, .Mean_sp, .Slope_sp),
            intercept = mapply(intercept, .Mean_sp, .Slope_sp),
            meanslope = mapply(mean, .Slope_sp, na.rm = TRUE),
            ave = apply(df_[selected_bm], 2, mean, na.rm = TRUE),

@@ -40,7 +40,7 @@ makeDemodata <- function(n_sub, prms_a, prms_b, prms_c, sd_a, sd_b, sd_c, sd_res
     df <- df %>%
       mutate(BM_str = paste0("Biomarker", BM)) %>%
       select(ID, TIME, TIME2, BM_str, DV, offsetT) %>%
-      spread(BM_str, DV) %>%
+      pivot_wider(names_from  = BM_str, values_from = DV) %>%
       arrange(ID, TIME)
   }
 
