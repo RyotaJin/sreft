@@ -15,3 +15,6 @@ Imports:
     magrittr,
     rlang,
     tidyr
+Suggests: 
+    ggplot2,
+    readr
