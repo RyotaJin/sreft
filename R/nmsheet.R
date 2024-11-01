@@ -183,7 +183,7 @@ setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XM
            omega_α = 0.0001,
            omega_β = 0,
            omega_γ = 0.0001,
-           sigma = 0.01)
+           sigma = 0.1)
   output[output$Biomarker == definition_bm, c("omega_β")] <- 0.0001
   output[output$Biomarker == definition_bm, c("omega_α", "omega_γ")] <- 0
 
@@ -200,14 +200,22 @@ setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XM
   return(output)
 }
 
-makeControlStream <- function (init, df, runno = "", PROBLEM = "", DATA = "data.csv") {
+makeControlStream <- function (init, df, no_definition_bm, runno = "", PROBLEM = "", DATA = "data.csv") {
   ctl <- list()
   ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
   ctl["input"] <- paste0("$INPUT ", paste(names(df), collapse = " "),"\n")
   ctl["data"] <- paste0("$DATA ", DATA, "\nIGNORE=@\n")
-  ctl["subroutine"] <- paste0("$SUBROUTINE PRED=", runno, "_pred_sreft.f90\n")
+  ctl["subroutine"] <- paste0("$SUBROUTINE PRED=../../", runno, "_pred_sreft.f90\n")
+
+  tmp_alpha <- init[, "α"]
+  if (no_definition_bm >= length(tmp_alpha)) {
+    tmp_alpha <- c(tmp_alpha, "FIXED")
+  } else {
+    tmp_alpha <- c(tmp_alpha[1:no_definition_bm], "FIXED", tmp_alpha[(no_definition_bm + 1):length(tmp_alpha)])
+  }
+
   ctl["theta"] <- paste0("$THETA\n" ,
-                         paste(init[1, "α"], "FIXED", paste(init[2:length(inits["α"]), "α"], collapse = " ")), "\n",
+                         paste(tmp_alpha, collapse = " "), "\n",
                          paste(init[, "β"], collapse = " "), "\n",
                          paste(init[, "γ"], collapse = " "), "\n")
   ctl["omega"] <- paste0("$OMEGA\n",
@@ -223,12 +231,13 @@ makeControlStream <- function (init, df, runno = "", PROBLEM = "", DATA = "data.
   return(ctl)
 }
 
-evalModel <- function (x, prms, lognorm = FALSE) {
+evalModel <- function (x, prms) {
+  n_bm <- length(prms) / 3
   .time  <- x["TIME"]
   .bm    <- x["BM"]
-  .alpha <- prms[paste0("alpha", 1:NUMBM)]
-  .beta  <- prms[paste0("beta", 1:NUMBM)]
-  .gamma <- prms[paste0("gamma", 1:NUMBM)]
+  .alpha <- prms[paste0("alpha", 1:n_bm)]
+  .beta  <- prms[paste0("beta", 1:n_bm)]
+  .gamma <- prms[paste0("gamma", 1:n_bm)]
 
   if (.bm == 1) {
     output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
@@ -236,12 +245,5 @@ evalModel <- function (x, prms, lognorm = FALSE) {
     output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
   }
 
-  if (!lognorm) {
-    output <- exp(output * SDBM[.bm] + AVEBM[.bm])
-
-    if (XMAX[.bm] != 0) {
-      output <- output / (1 + output) * XMAX[.bm] - 0.5
-    }
-  }
   return(output)
 }
