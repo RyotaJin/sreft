@@ -57,7 +57,7 @@ runno <- "run001"
 ctrl <- makeControlStream(inits,
                           nmsheet,
                           runno)
-cat(paste(ctl, collapse = "\n"), file = paste0(runno, ".mod"))
+cat(paste(ctrl, collapse = "\n"), file = paste0(runno, ".mod"))
 
 
 # system("execute run001.mod run001.lst")
