@@ -199,3 +199,49 @@ setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XM
   output[, -1] <- signif(output[, -1], digits = 5)
   return(output)
 }
+
+makeControlStream <- function (init, df, runno = "", PROBLEM = "", DATA = "data.csv") {
+  ctl <- list()
+  ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
+  ctl["input"] <- paste0("$INPUT ", paste(names(df), collapse = " "),"\n")
+  ctl["data"] <- paste0("$DATA ", DATA, "\nIGNORE=@\n")
+  ctl["subroutine"] <- paste0("$SUBROUTINE PRED=", runno, "_pred_sreft.f90\n")
+  ctl["theta"] <- paste0("$THETA\n" ,
+                         paste(init[1, "α"], "FIXED", paste(init[2:length(inits["α"]), "α"], collapse = " ")), "\n",
+                         paste(init[, "β"], collapse = " "), "\n",
+                         paste(init[, "γ"], collapse = " "), "\n")
+  ctl["omega"] <- paste0("$OMEGA\n",
+                         paste(init[, "omega_α"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n",
+                         paste(init[, "omega_β"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n",
+                         paste(init[, "omega_γ"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n")
+  ctl["sigma"] <- paste0("$SIGMA ", paste(init[, "sigma"], collapse = " "), "\n")
+  ctl["estimation"] <- "$ESTIMATION METHOD=1 MAXEVAL=99999 PRINT=1 NOABORT SIGDIGITS=2 NOTITLE=1\n"
+  ctl["covariance"] <- "$COVARIANCE UNCONDITIONAL MATRIX=S\n"
+  ctl["table"] <- paste0("$TABLE ", paste(names(df), collapse = " "), " PRED CIPRED CWRES\nNOPRINT FORMAT=,F10.5 FILE=",
+                         runno, ".fit ONEHEADER NOTITLE NOAPPEND")
+
+  return(ctl)
+}
+
+evalModel <- function (x, prms, lognorm = FALSE) {
+  .time  <- x["TIME"]
+  .bm    <- x["BM"]
+  .alpha <- prms[paste0("alpha", 1:NUMBM)]
+  .beta  <- prms[paste0("beta", 1:NUMBM)]
+  .gamma <- prms[paste0("gamma", 1:NUMBM)]
+
+  if (.bm == 1) {
+    output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
+  }else{
+    output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
+  }
+
+  if (!lognorm) {
+    output <- exp(output * SDBM[.bm] + AVEBM[.bm])
+
+    if (XMAX[.bm] != 0) {
+      output <- output / (1 + output) * XMAX[.bm] - 0.5
+    }
+  }
+  return(output)
+}
