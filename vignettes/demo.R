@@ -5,14 +5,14 @@ setwd("")
 dir.create("foo")
 
 set.seed(42)
-df <- makeDemodata(400,
+df <- makeDemodata(500,
                    c(-2, 2, 1.5),
                    c(0.05, -0.05, -0.2),
                    c(0.1, 0.1, -0.1),
                    sqrt(c(0.125, 0.18, 0)),
                    sqrt(c(0, 0, 0.001)),
                    sqrt(c(0.0013, 0.0005, 0)),
-                   c(0.2, 0.05, 0.1),
+                   c(0.2, 0.2, 0.2),
                    -5,
                    20,
                    0:4,
@@ -32,14 +32,14 @@ ggplot(df, aes(x = TIME2, y = DV, group = ID, color = factor(BM))) +
 
 
 set.seed(42)
-df_ <- makeDemodata(400,
+df_ <- makeDemodata(500,
                     c(-2, 2, 1.5),
                     c(0.05, -0.05, -0.2),
                     c(0.1, 0.1, -0.1),
                     sqrt(c(0.125, 0.18, 0)),
                     sqrt(c(0, 0, 0.001)),
                     sqrt(c(0.0013, 0.0005, 0)),
-                    c(0.2, 0.05, 0.1),
+                    c(0.2, 0.2, 0.2),
                     -5,
                     20,
                     0:4)
@@ -68,17 +68,18 @@ df_offsetT_pred <- read_csv("offsetT.csv") %>%
 
 df_fit <- read_csv(paste0(runno, ".fit")) %>%
   left_join(df_offsetT_pred) %>%
-  mutate(TIME = TIME + offsetT_pred)
+  mutate(TIME = TIME + offsetT_pred,
+         BM = CMT)
 
 # パラメータの読み込み
-prms <- read_tsv(paste0(runno, ".ext")) %>%
+prms <- read_tsv(paste0(runno, ".ext"), skip = 1) %>%
+  filter(ITERATION == -1000000000)
   select(matches("THETA")) %>%
-  slice(n()) %>%
-  setNames(rep(paste0(c("alpha", "beta", "gamma"), each = (ncol(.) / 3)), 1:(ncol(.) / 3))))
+  setNames(paste0(rep(c("alpha", "beta", "gamma"), each = (ncol(.) / 3)), 1:(ncol(.) / 3)))
 
 # prediction
 df_pred <- expand.grid(TIME = seq(min(df_fit$TIME), max(df_fit$TIME), len = 100),
-                       BM = 1:NUMBM,
+                       BM = 1:max(df_fit$CMT),
                        KEEP.OUT.ATTRS = FALSE) %>%
   mutate(pred = apply(., 1, evalModel, prms))
 
