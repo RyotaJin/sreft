@@ -60,7 +60,7 @@ ctrl <- makeControlStream(inits,
 cat(paste(ctrl, collapse = "\n"), file = paste0(runno, ".mod"))
 
 
-# system("execute run001.mod run001.lst")
+# system("execute run001.mod)
 
 
 df_offsetT_pred <- read_csv("offsetT.csv") %>%
