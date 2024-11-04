@@ -228,6 +228,7 @@ makeControlStream <- function (init, df, no_definition_bm, runno = "", PROBLEM =
   return(ctl)
 }
 
+#' @export
 evalModel <- function (x, prms) {
   n_bm <- length(prms) / 3
   .time  <- x["TIME"]
