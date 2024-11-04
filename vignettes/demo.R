@@ -57,6 +57,7 @@ write_csv(inits, "inits.csv")
 runno <- "run001"
 ctrl <- makeControlStream(inits,
                           nmsheet,
+                          3,
                           runno)
 cat(paste(ctrl, collapse = "\n"), file = paste0(runno, ".mod"))
 
@@ -73,8 +74,8 @@ df_fit <- read_csv(paste0(runno, ".fit")) %>%
          BM = CMT)
 
 # パラメータの読み込み
-prms <- read_tsv(paste0(runno, ".ext"), skip = 1) %>%
-  filter(ITERATION == -1000000000)
+prms <- read_table(paste0(runno, ".ext"), skip = 1) %>%
+  filter(ITERATION == -1000000000) %>%
   select(matches("THETA")) %>%
   setNames(paste0(rep(c("alpha", "beta", "gamma"), each = (ncol(.) / 3)), 1:(ncol(.) / 3)))
 
@@ -87,7 +88,7 @@ df_pred <- expand.grid(TIME = seq(min(df_fit$TIME), max(df_fit$TIME), len = 100)
 ggplot(df_fit, aes(x = TIME, y = DV)) +
   geom_point(size = 0.7, alpha = 0.7, shape = 16) +
   geom_line(linewidth = 0.3, alpha = 0.7, aes(group = ID)) +
-  facet_rep_wrap(~BM, scales = "free_y", repeat.tick.labels = TRUE) +
+  facet_wrap(~CMT, scales = "free_y") +
   geom_line(data = df_pred, aes(x = TIME, y = pred), size = 1.5, colour = "#3366FF") +
   labs(x = "Time (year)", y = "DV")
 
