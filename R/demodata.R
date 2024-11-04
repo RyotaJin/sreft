@@ -14,6 +14,7 @@ getObs <- function(x, sd_res) {
 
 }
 
+#' @export
 makeDemodata <- function(n_sub, prms_a, prms_b, prms_c, sd_a, sd_b, sd_c, sd_res, min_time, max_time, timepoint, isspread = TRUE) {
   check_lengths(prms_a, prms_b, prms_c, sd_a, sd_b, sd_c)
   n_bm <- length(prms_a)

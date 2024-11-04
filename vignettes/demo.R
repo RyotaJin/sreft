@@ -2,8 +2,8 @@ library(sreft)
 library(readr)
 library(ggplot2)
 
-setwd("")
-dir.create("demo")
+# setwd("")
+# dir.create("demo")
 
 set.seed(42)
 df <- makeDemodata(500,

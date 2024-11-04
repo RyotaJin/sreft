@@ -195,6 +195,8 @@ setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XM
   return(output)
 }
 
+
+#' @export
 makeControlStream <- function (init, df, no_definition_bm, runno = "", PROBLEM = "", DATA = "data.csv") {
   ctl <- list()
   ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
