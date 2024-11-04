@@ -243,5 +243,5 @@ evalModel <- function (x, prms) {
     output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
   }
 
-  return(output)
+  return(output %>% as.numeric())
 }
