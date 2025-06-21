@@ -1,7 +1,7 @@
 check_lengths <- function(...) {
   lengths <- sapply(list(...), length)
   if (length(unique(lengths)) != 1) {
-    stop("Error: All vectors must have the same length.")
+    stop("All vectors must have the same length.")
   }
 }
 
@@ -19,30 +19,35 @@ makeDemodata <- function(n_sub, prms_a, prms_b, prms_c, sd_a, sd_b, sd_c, sd_res
   check_lengths(prms_a, prms_b, prms_c, sd_a, sd_b, sd_c)
   n_bm <- length(prms_a)
 
-  df_offsetT <- data.frame(ID = 1:n_sub,
+  df_indprms <- data.frame(ID = 1:n_sub,
                            offsetT = runif(n_sub, min_time, max_time))
-
   for (i in 1:n_bm) {
-    df_offsetT <- df_offsetT %>%
-      mutate(!!paste0("a", i) := prms_a[i] + rnorm(n_sub, 0, sd_a[i]),
-             !!paste0("b", i) := prms_b[i] + rnorm(n_sub, 0, sd_b[i]),
-             !!paste0("c", i) := prms_c[i] + rnorm(n_sub, 0, sd_c[i]))
+    df_indprms[[paste0("a", i)]] <- prms_a[i] + rnorm(n_sub, 0, sd_a[i])
+    df_indprms[[paste0("b", i)]] <- prms_b[i] + rnorm(n_sub, 0, sd_b[i])
+    df_indprms[[paste0("c", i)]] <- prms_c[i] + rnorm(n_sub, 0, sd_c[i])
   }
 
   df <- expand.grid(ID = 1:n_sub,
                     TIME = timepoint,
-                    BM = 1:n_bm) %>%
-    arrange(ID, TIME) %>%
-    left_join(df_offsetT, by = "ID") %>%
-    mutate(TIME2 = TIME + offsetT) %>%
-    mutate(DV = apply(., 1, getObs, sd_res = sd_res))
+                    BM = 1:n_bm)
+  df <- df[order(df$ID, df$TIME), ]
+  df <- merge(df, df_indprms, by = "ID", sort = FALSE)
+  df$TIME2 <- df$TIME + df$offsetT
+  df$DV <- apply(df, 1, function(row) getObs(row, sd_res = sd_res))
 
   if (isspread) {
-    df <- df %>%
-      mutate(BM_str = paste0("Biomarker", BM)) %>%
-      select(ID, TIME, TIME2, BM_str, DV, offsetT) %>%
-      pivot_wider(names_from  = BM_str, values_from = DV) %>%
-      arrange(ID, TIME)
+    df$BM_str <- paste0("Biomarker", df$BM)
+
+    wide_df <- unique(df[c("ID", "TIME", "TIME2", "offsetT")])
+    wide_df <- wide_df[order(wide_df$ID, wide_df$TIME), ]
+
+    for (bm in unique(df$BM_str)) {
+      tmp <- df[df$BM_str == bm, c("ID", "TIME", "DV")]
+      names(tmp)[3] <- bm
+      wide_df <- merge(wide_df, tmp, by = c("ID", "TIME"), all.x = TRUE, sort = FALSE)
+    }
+
+    df <- wide_df
   }
 
   return(df)

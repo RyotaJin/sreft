@@ -14,35 +14,43 @@
 #' max_value <- 5
 #' converted_scores <- scoreConverter(x, max_value)
 #'
-scoreConverter <- function (x_vec, max) {
+scoreConverter <- function(x_vec, max) {
   output <- (x_vec + 0.5) / (max + 1)
   output <- output / (1 - output)
   return(output)
 }
 
 
-lognormConverter <- function (df, selected_bm, XMAX) {
+lognormConverter <- function(df, selected_bm, XMAX) {
   output <- df[selected_bm]
-  min_values <- output %>% apply(2, min, na.rm = TRUE)
+
+  min_values <- sapply(output, function(x) min(x, na.rm = TRUE))
+
   under_zero_indices <- which(min_values <= 0)
 
   if (any(min_values <= 0 & XMAX[under_zero_indices] <= 0)) {
     biomarkers_with_issue <- selected_bm[min_values <= 0 & XMAX <= 0]
-    message_ <- paste(biomarkers_with_issue, collapse = ", ") %>%
-      paste("has values under 0, but appropriate XMAX was not supplied. Please provide XMAX or convert the values before passing them to this function.")
+    message_ <- paste(biomarkers_with_issue, collapse = ", ")
+    message_ <- paste(message_, "has values under 0, but appropriate XMAX was not supplied. Please provide XMAX or convert the values before passing them to this function.")
     stop(message_)
   } else {
-    if (any(under_zero_indices)) {
-      df[names(under_zero_indices)] <- mapply(scoreConverter, df[names(under_zero_indices)], XMAX[under_zero_indices])
+    if (length(under_zero_indices) > 0) {
+      for (i in under_zero_indices) {
+        colname <- selected_bm[i]
+        df[[colname]] <- scoreConverter(df[[colname]], XMAX[i])
+      }
     }
-    output <- log(output)
-    output <- apply(output, 2, scale)
+
+    output <- log(df[selected_bm])
+    output <- as.data.frame(lapply(output, scale))
   }
+
   return(output)
 }
 
 
-slope <- function (x, y) {
+
+slope <- function(x, y) {
   if (length(x) != length(y)) {
     stop("x and y is not same length!")
   }
@@ -60,7 +68,7 @@ slope <- function (x, y) {
 }
 
 
-intercept <- function (x, y) {
+intercept <- function(x, y) {
   x_ <- x[!is.na(x) & !is.na(y)]
   y_ <- y[!is.na(x) & !is.na(y)]
 
@@ -89,44 +97,68 @@ intercept <- function (x, y) {
 #' sheet <- makeNonmemSheet(df, selected_bm, selected_cov)
 #'
 #' @export
-makeNonmemSheet <- function (df, selected_bm, selected_cov, XMAX = NULL, lognorm = TRUE){
+makeNonmemSheet <- function(df, selected_bm, selected_cov, XMAX = NULL, lognorm = TRUE){
   output <- df
+
   if (lognorm) {
     output[selected_bm] <- lognormConverter(df, selected_bm, XMAX)
   }
 
   numbm <- length(selected_bm)
+  ids <- unique(output$ID)
 
-  meanxs <- lapply(selected_bm, function (col) {
-    output %>%
-      filter(!is.na(!!sym({{col}}))) %>%
-      summarise(meanx = mean(TIME), .by = ID)
-  }) %>%
-    bind_rows(.id = "Biomarker") %>%
-    pivot_wider(names_from  = Biomarker, values_from = meanx) %>%
-    setNames(c("ID", paste0("MeanX", 1:numbm)))
+  meanxs_list <- vector("list", numbm)
+  for (i in seq_along(selected_bm)) {
+    col <- selected_bm[i]
+    rows <- !is.na(output[[col]])
+    tmp <- output[rows, c("ID", "TIME")]
+    meanx <- tapply(tmp$TIME, tmp$ID, mean)
+    meanxs_list[[i]] <- data.frame(ID = as.numeric(names(meanx)), MeanX = as.numeric(meanx))
+    names(meanxs_list[[i]])[2] <- paste0("MeanX", i)
+  }
+  meanxs <- Reduce(function(x, y) merge(x, y, by = "ID", all = TRUE), meanxs_list)
 
-  meanys <- output %>%
-    summarise(across(all_of(selected_bm), \ (x) mean(x, na.rm = TRUE)), .by = ID) %>%
-    setNames(c("ID", paste0("MeanY", 1:numbm)))
+  meanys <- aggregate(output[selected_bm], by = list(ID = output$ID), FUN = function(x) mean(x, na.rm = TRUE))
+  names(meanys)[-1] <- paste0("MeanY", seq_along(selected_bm))
 
-  counts <- output %>%
-    summarise(across(all_of(selected_bm), \ (x) sum(!is.na(x))), .by = ID) %>%
-    setNames(c("ID", paste0("Count", 1:numbm)))
+  counts <- aggregate(output[selected_bm], by = list(ID = output$ID), FUN = function(x) sum(!is.na(x)))
+  names(counts)[-1] <- paste0("Count", seq_along(selected_bm))
 
-  output <- output %>%
-    select(ID, TIME, all_of(selected_bm), all_of(selected_cov)) %>%
-    merge(meanxs) %>%
-    merge(meanys) %>%
-    merge(counts) %>%
-    pivot_longer(cols = all_of(selected_bm), names_to = "CMT_name", values_to = "DV") %>%
-    drop_na(DV) %>%
-    mutate(CMT = match(CMT_name, (selected_bm))) %>%
-    select(ID, TIME, CMT, CMT_name, DV, everything()) %>%
-    arrange(ID, CMT, TIME)
+  output_subset <- output[, c("ID", "TIME", selected_bm, selected_cov)]
 
-  return(output)
+  merged <- merge(output_subset, meanxs, by = "ID", all.x = TRUE)
+  merged <- merge(merged, meanys, by = "ID", all.x = TRUE)
+  merged <- merge(merged, counts, by = "ID", all.x = TRUE)
+
+  long_df_list <- list()
+  for (i in seq_along(selected_bm)) {
+    bm <- selected_bm[i]
+    tmp <- merged[, c("ID", "TIME", bm)]
+    names(tmp)[3] <- "DV"
+    tmp$CMT_name <- bm
+    tmp$CMT <- i
+    long_df_list[[i]] <- tmp
+  }
+
+  common_names <- names(long_df_list[[1]])
+  long_df_list <- lapply(long_df_list, function(df) {
+    df[common_names]
+  })
+
+  long_df <- do.call(rbind, long_df_list)
+  long_df <- merge(long_df, merged[, !(names(merged) %in% selected_bm)])
+
+  long_df <- long_df[!is.na(long_df$DV), ]
+
+  long_df <- long_df[order(long_df$ID, long_df$CMT, long_df$TIME), ]
+
+  fixed_cols <- c("ID", "TIME", "CMT", "CMT_name", "DV")
+  other_cols <- setdiff(names(long_df), fixed_cols)
+  long_df <- long_df[, c(fixed_cols, other_cols)]
+
+  return(long_df)
 }
+
 
 #' Set Initial Parameters
 #'
@@ -146,58 +178,73 @@ makeNonmemSheet <- function (df, selected_bm, selected_cov, XMAX = NULL, lognorm
 #' setInitialPrms(df, selected_bm, definition_bm, definition_value)
 #'
 #' @export
-setInitialPrms <- function (df, selected_bm, definition_bm, definition_value, XMAX = NULL, estimated_mean_offsetT = 10, lognorm = TRUE) {
+setInitialPrms <- function(df, selected_bm, definition_bm, definition_value,
+                                 XMAX = NULL, estimated_mean_offsetT = 10, lognorm = TRUE) {
   df_ <- df
   if (lognorm) {
     df_[selected_bm] <- lognormConverter(df_, selected_bm, XMAX)
   }
 
   numbm <- length(selected_bm)
+  ids <- unique(df_$ID)
 
-  slopes <- lapply(selected_bm, function (col) {
-    df_ %>%
-      summarise(slope = slope(TIME, !!sym({{col}})), .by = ID)
-  }) %>%
-    bind_rows(.id = "Biomarker") %>%
-    mutate(Biomarker = as.numeric(Biomarker))
-
-  meanys <- df_ %>%
-    summarise(across(all_of(selected_bm), \ (x) mean(x, na.rm = TRUE)), .by = ID) %>%
-    pivot_longer(cols = -ID, names_to = "Biomarker", values_to = "meany") %>%
-    mutate(Biomarker = match(Biomarker, selected_bm))
-
-  .Mean_sp  <- split(meanys$meany, meanys$Biomarker)
-  .Slope_sp <- split(slopes$slope, slopes$Biomarker)
-
-  output <- data.frame(Biomarker = selected_bm) %>%
-    mutate(slope = mapply(slope, .Mean_sp, .Slope_sp),
-           intercept = mapply(intercept, .Mean_sp, .Slope_sp),
-           meanslope = mapply(mean, .Slope_sp, na.rm = TRUE),
-           ave = apply(df_[selected_bm], 2, mean, na.rm = TRUE),
-           sd = apply(df_[selected_bm], 2, sd, na.rm = TRUE),
-           omega_α = 0.0001,
-           omega_β = 0,
-           omega_γ = 0.0001,
-           sigma = 0.1)
-  output[output$Biomarker == definition_bm, c("omega_β")] <- 0.0001
-  output[output$Biomarker == definition_bm, c("omega_α", "omega_γ")] <- 0
-
-  output[, "α"] <- output[, "meanslope"] / exp(output[, "slope"] * estimated_mean_offsetT)
-  if (lognorm) {
-    output[output$Biomarker == definition_bm, "α"] <- (log(definition_value) - output[1, "ave"]) / output[1, "sd"]
-  } else {
-    output[output$Biomarker == definition_bm, "α"] <- definition_value
+  slopes_list <- vector("list", numbm)
+  for (i in seq_along(selected_bm)) {
+    bm <- selected_bm[i]
+    slopes_vec <- tapply(1:nrow(df_), df_$ID, function(idx) {
+      slope(df_$TIME[idx], df_[[bm]][idx])
+    })
+    slopes_list[[i]] <- data.frame(ID = names(slopes_vec), slope = unlist(slopes_vec), Biomarker = i)
   }
-  output[, "β"] <- output[, "intercept"] + output[, "α"] * output[, "slope"]
-  output[, "γ"] <- output[, "slope"]
+  slopes_df <- do.call(rbind, slopes_list)
+
+  meanys_list <- vector("list", numbm)
+  for (i in seq_along(selected_bm)) {
+    bm <- selected_bm[i]
+    meanys_vec <- tapply(df_[[bm]], df_$ID, function(x) mean(x, na.rm = TRUE))
+    meanys_list[[i]] <- data.frame(ID = names(meanys_vec), meany = unlist(meanys_vec), Biomarker = i)
+  }
+  meanys_df <- do.call(rbind, meanys_list)
+
+  .Mean_sp  <- split(meanys_df$meany, meanys_df$Biomarker)
+  .Slope_sp <- split(slopes_df$slope, slopes_df$Biomarker)
+
+  output <- data.frame(Biomarker = selected_bm,
+                       slope = mapply(slope, .Mean_sp, .Slope_sp),
+                       intercept = mapply(intercept, .Mean_sp, .Slope_sp),
+                       meanslope = mapply(mean, .Slope_sp, na.rm = TRUE),
+                       ave = sapply(df_[selected_bm], mean, na.rm = TRUE),
+                       sd = sapply(df_[selected_bm], sd, na.rm = TRUE),
+                       omega_α = 0.0001,
+                       omega_β = 0,
+                       omega_γ = 0.0001,
+                       sigma = 0.1,
+                       stringsAsFactors = FALSE)
+
+  def_idx <- which(output$Biomarker == definition_bm)
+  output$omega_β[def_idx] <- 0.0001
+  output$omega_α[def_idx] <- 0
+  output$omega_γ[def_idx] <- 0
+
+  output$α <- output$meanslope / exp(output$slope * estimated_mean_offsetT)
+  if (lognorm) {
+    output$α[def_idx] <- (log(definition_value) - output$ave[def_idx]) / output$sd[def_idx]
+  } else {
+    output$α[def_idx] <- definition_value
+  }
+
+  output$β <- output$intercept + output$α * output$slope
+  output$γ <- output$slope
 
   output[, -1] <- signif(output[, -1], digits = 5)
+
   return(output)
 }
 
 
+
 #' @export
-makeControlStream <- function (init, df, no_definition_bm, runno = "", PROBLEM = "", DATA = "data.csv") {
+makeControlStream <- function(init, df, no_definition_bm, runno = "", PROBLEM = "", DATA = "data.csv") {
   ctl <- list()
   ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
   ctl["input"] <- paste0("$INPUT ", paste(names(df), collapse = " "),"\n")
@@ -229,7 +276,7 @@ makeControlStream <- function (init, df, no_definition_bm, runno = "", PROBLEM =
 }
 
 #' @export
-evalModel <- function (x, prms) {
+evalModel <- function(x, prms) {
   n_bm <- length(prms) / 3
   .time  <- x["TIME"]
   .bm    <- x["BM"]
