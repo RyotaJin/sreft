@@ -1,5 +1,5 @@
 library(sreft)
-library(readr)
+library(dplyr)
 library(ggplot2)
 
 # setwd("")
@@ -50,16 +50,16 @@ nmsheet <- makeNonmemSheet(df_, paste0("Biomarker", 1:3), "offsetT", lognorm = F
 
 inits <- setInitialPrms(df_, paste0("Biomarker", 1:3), "Biomarker3", 1.5, estimated_mean_offsetT = 10, lognorm = FALSE)
 
-write_csv(nmsheet, "data.csv")
-write_csv(inits, "inits.csv")
+write.csv(nmsheet, "data.csv", row.names = FALSE)
+write.csv(inits, "inits.csv", row.names = FALSE)
 
 
 runno <- "run001"
-ctrl <- makeControlStream(inits,
+ctl <- makeControlStream(inits,
                           nmsheet,
                           3,
                           runno)
-cat(paste(ctrl, collapse = "\n"), file = paste0(runno, ".mod"))
+cat(paste(ctl, collapse = "\n"), file = paste0(runno, ".mod"))
 
 
 # system("execute run001.mod)

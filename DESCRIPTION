@@ -1,6 +1,6 @@
 Package: sreft
 Title: Utility tools for SReFT
-Version: 0.1.0
+Version: 0.1.1
 Author@R: person(given = "Ryota", family = "Jin", role = c("aut", "cre"))
 Description: This package contains functions to preprocess data for SReFT
     (Statistical Restoration of Fragmented Time course) analysis and to plot
@@ -10,11 +10,6 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 RoxygenNote: 7.3.2
 Config/testthat/edition: 3
-Imports: 
-    dplyr,
-    magrittr,
-    rlang,
-    tidyr
 Suggests: 
-    ggplot2,
-    readr
+    dplyr,
+    ggplot2
