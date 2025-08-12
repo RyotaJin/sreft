@@ -23,14 +23,24 @@ makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col
                       "      a = theta(1:numbm) + eta(1:numbm)\n",
                       "      b = theta(1+numbm:2*numbm) + eta(1+numbm:2*numbm)\n",
                       "      c = theta(1+2*numbm:3*numbm) + eta(1+2*numbm:3*numbm)\n",
-                      "      covt = 1.0d0\n",
                       "      covy = 0.0d0\n")
 
-  # if (!is.null(cols_COVT)) {
-  #   which(names(df) %in% cols_COVT)
-  # }
+  code_covt <- "      covt = 1.0d0"
+  if (!is.null(cols_COVT)) {
+    colnos_COVT <- which(names(df) %in% cols_COVT)
+    if (length(cols_COVT) != length(colnos_COVT)) {
+      stop("One or more specified column names do not exist in the dataset.")
+    }
+    numbm <- max(df$CMT)
+    for (i in seq_along(colnos_COVT)) {
+      code_covt <- paste0(code_covt, " + theta(", 3 * numbm + i, ") * datrec(", colnos_COVT[i], ")")
+    }
+  }
+  code_covt <- paste0(code_covt, "\n")
 
-  output <- paste0(list(code_1st, code_range, code_2nd, code_prms, code_3rd), collapse = "\n")
+  # code_covy
+
+  output <- paste0(list(code_1st, code_range, code_2nd, code_prms, code_covt, code_3rd), collapse = "\n")
 
   return(output)
 }
