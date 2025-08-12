@@ -249,7 +249,7 @@ makeControlStream <- function(init, df, no_definition_bm, runno = "", PROBLEM = 
   ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
   ctl["input"] <- paste0("$INPUT ", paste(names(df), collapse = " "),"\n")
   ctl["data"] <- paste0("$DATA ", DATA, "\nIGNORE=@\n")
-  ctl["subroutine"] <- paste0("$SUBROUTINE PRED=../../", runno, "_pred_sreft.f90\n")
+  ctl["subroutine"] <- paste0("$SUBROUTINE PRED=../../", runno, ".f90\n")
 
   tmp_alpha <- init[, "α"]
   if (no_definition_bm >= length(tmp_alpha)) {
