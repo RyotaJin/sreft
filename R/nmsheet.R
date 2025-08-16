@@ -251,30 +251,26 @@ makeControlStream <- function(init, df, no_definition_bm, cols_COVT = NULL, cols
   ctl["data"] <- paste0("$DATA ", DATA, "\nIGNORE=@\n")
   ctl["subroutine"] <- paste0("$SUBROUTINE PRED=../../", runno, ".f90\n")
 
-  tmp_alpha <- init[, "α"]
-  if (no_definition_bm >= length(tmp_alpha)) {
-    tmp_alpha <- c(tmp_alpha, "FIXED")
-  } else {
-    tmp_alpha <- c(tmp_alpha[1:no_definition_bm], "FIXED", tmp_alpha[(no_definition_bm + 1):length(tmp_alpha)])
-  }
+  tmp_alpha <- as.character(init[, "α"])
+  tmp_alpha[no_definition_bm] <- paste(tmp_alpha[no_definition_bm], "FIX")
 
   ctl["theta"] <- paste0("$THETA\n" ,
-                         paste(tmp_alpha, collapse = " "), "\n",
-                         paste(init[, "β"], collapse = " "), "\n",
-                         paste(init[, "γ"], collapse = " "), "\n")
+                         paste(tmp_alpha, collapse = "\n"), "\n\n",
+                         paste(init[, "β"], collapse = "\n"), "\n\n",
+                         paste(init[, "γ"], collapse = "\n"), "\n\n")
   if (!is.null(cols_COVT)) {
-    ctl["theta"] <- paste0(ctl["theta"], paste(rep("0.1", length(cols_COVT)), collapse = " "), "\n")
+    ctl["theta"] <- paste0(ctl["theta"], paste(rep("0.1", length(cols_COVT)), collapse = "\n"), "\n\n")
   }
 
   if (!is.null(cols_COVY)) {
-    ctl["theta"] <- paste0(ctl["theta"], paste(rep(paste(rep("0.1", nrow(init)), collapse = " "), length(cols_COVY)), collapse = "\n"), "\n")
+    ctl["theta"] <- paste0(ctl["theta"], paste(rep(paste(rep("0.1", nrow(init)), collapse = "\n"), length(cols_COVY)), collapse = "\n"), "\n")
   }
 
   ctl["omega"] <- paste0("$OMEGA\n",
-                         paste(init[, "omega_α"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n",
-                         paste(init[, "omega_β"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n",
-                         paste(init[, "omega_γ"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n")
-  ctl["sigma"] <- paste0("$SIGMA ", paste(init[, "sigma"], collapse = " "), "\n")
+                         paste(init[, "omega_α"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n\n",
+                         paste(init[, "omega_β"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n\n",
+                         paste(init[, "omega_γ"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n")
+  ctl["sigma"] <- paste0("$SIGMA\n", paste(init[, "sigma"], collapse = "\n"), "\n")
   ctl["estimation"] <- "$ESTIMATION METHOD=1 MAXEVAL=99999 PRINT=1 NOABORT SIGDIGITS=2 NOTITLE=1\n"
   ctl["covariance"] <- "$COVARIANCE UNCONDITIONAL MATRIX=S\n"
   ctl["table"] <- paste0("$TABLE ", paste(names(df), collapse = " "), " PRED CIPRED CWRES\nNOPRINT FORMAT=,F10.5 FILE=",
