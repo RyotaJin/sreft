@@ -56,13 +56,13 @@ write.csv(inits, "inits.csv", row.names = FALSE)
 
 runno <- "run001"
 ctl <- makeControlStream(inits,
-                          nmsheet,
-                          3,
-                          runno)
-cat(paste(ctl, collapse = "\n"), file = paste0(runno, ".mod"))
+                         nmsheet,
+                         runno,
+                         3)
+cat(ctl, file = paste0(runno, ".mod"))
 
 f90 <- makef90(nmsheet)
-cat(paste(f90, collapse = "\n"), file = paste0(runno, ".f90"))
+cat(f90, file = paste0(runno, ".f90"))
 
 # system("execute run001.mod)
 

@@ -244,7 +244,7 @@ setInitialPrms <- function(df, selected_bm, definition_bm, definition_value,
 
 
 #' @export
-makeControlStream <- function(init, df, no_definition_bm, cols_COVT = NULL, cols_COVY = NULL, runno = "", PROBLEM = "", DATA = "data.csv") {
+makeControlStream <- function(init, df, runno, no_definition_bm, cols_COVT = NULL, cols_COVY = NULL, PROBLEM = "", DATA = "data.csv") {
   ctl <- list()
   ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
   ctl["input"] <- paste0("$INPUT ", paste(names(df), collapse = " "),"\n")
@@ -276,7 +276,8 @@ makeControlStream <- function(init, df, no_definition_bm, cols_COVT = NULL, cols
   ctl["table"] <- paste0("$TABLE ", paste(names(df), collapse = " "), " PRED CIPRED CWRES\nNOPRINT FORMAT=,F10.5 FILE=",
                          runno, ".fit ONEHEADER NOTITLE NOAPPEND")
 
-  return(ctl)
+  output <- paste(ctl, collapse = "\n")
+  return(output)
 }
 
 #' @export

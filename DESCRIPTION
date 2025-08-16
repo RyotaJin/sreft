@@ -1,6 +1,6 @@
 Package: sreft
 Title: Utility tools for SReFT
-Version: 0.1.1
+Version: 0.1.2
 Author@R: person(given = "Ryota", family = "Jin", role = c("aut", "cre"))
 Description: This package contains functions to preprocess data for SReFT
     (Statistical Restoration of Fragmented Time course) analysis and to plot
