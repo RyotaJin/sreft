@@ -244,7 +244,7 @@ setInitialPrms <- function(df, selected_bm, definition_bm, definition_value,
 
 
 #' @export
-makeControlStream <- function(init, df, no_definition_bm, runno = "", PROBLEM = "", DATA = "data.csv") {
+makeControlStream <- function(init, df, no_definition_bm, cols_COVT = NULL, cols_COVY = NULL, runno = "", PROBLEM = "", DATA = "data.csv") {
   ctl <- list()
   ctl["problem"] <- paste0("$PROBLEM ", PROBLEM, "\n")
   ctl["input"] <- paste0("$INPUT ", paste(names(df), collapse = " "),"\n")
@@ -262,6 +262,14 @@ makeControlStream <- function(init, df, no_definition_bm, runno = "", PROBLEM = 
                          paste(tmp_alpha, collapse = " "), "\n",
                          paste(init[, "β"], collapse = " "), "\n",
                          paste(init[, "γ"], collapse = " "), "\n")
+  if (!is.null(cols_COVT)) {
+    ctl["theta"] <- paste0(ctl["theta"], paste(rep("0.1", length(cols_COVT)), collapse = " "), "\n")
+  }
+
+  if (!is.null(cols_COVY)) {
+    ctl["theta"] <- paste0(ctl["theta"], paste(rep(paste(rep("0.1", nrow(init)), collapse = " "), length(cols_COVY)), collapse = "\n"), "\n")
+  }
+
   ctl["omega"] <- paste0("$OMEGA\n",
                          paste(init[, "omega_α"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n",
                          paste(init[, "omega_β"] %>% replace(. == 0, "0 FIXED"), collapse = " "), "\n",
