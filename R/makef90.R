@@ -1,4 +1,4 @@
-makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col_BM = "CMT", cols_COVT = NULL, plotmax = 40, plotmin = -15) {
+makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col_BM = "CMT", cols_COVT = NULL, cols_COVY = NULL, plotmax = 40, plotmin = -15) {
   code_1st <- system.file("template/pred_Sreft_1st.f90", package = "sreft")
   code_1st <- readLines(code_1st)
   code_1st <- paste0(code_1st, collapse = "\n")
@@ -22,8 +22,7 @@ makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col
                       "      coun = datrac(/", paste(grep("Count", names(df)), collapse = ","), "/)\n",
                       "      a = theta(1:numbm) + eta(1:numbm)\n",
                       "      b = theta(1+numbm:2*numbm) + eta(1+numbm:2*numbm)\n",
-                      "      c = theta(1+2*numbm:3*numbm) + eta(1+2*numbm:3*numbm)\n",
-                      "      covy = 0.0d0\n")
+                      "      c = theta(1+2*numbm:3*numbm) + eta(1+2*numbm:3*numbm)\n")
 
   code_covt <- "      covt = 1.0d0"
   if (!is.null(cols_COVT)) {
@@ -38,9 +37,21 @@ makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col
   }
   code_covt <- paste0(code_covt, "\n")
 
-  # code_covy
+  code_covy <- "      covy = 0.0d0"
+  if (!is.null(cols_COVY)) {
+    colnos_COVY <- which(names(df) %in% cols_COVY)
+    if (length(cols_COVY) != length(colnos_COVY)) {
+      stop("One or more specified column names do not exist in the dataset.")
+    }
+    numbm <- max(df$CMT)
+    numbm_thetas <- numbm * 3 + length(cols_COVT)
+    for (i in seq_along(colnos_COVY)) {
+      code_covy <- paste0(code_covy, " + theta(", numbm_thetas + numbm * (i - 1), "+bm) * datrec(", colnos_COVY[i], ")")
+    }
+  }
+  code_covy <- paste0(code_covy, "\n")
 
-  output <- paste0(list(code_1st, code_range, code_2nd, code_prms, code_covt, code_3rd), collapse = "\n")
+  output <- paste0(list(code_1st, code_range, code_2nd, code_prms, code_covt, code_covy, code_3rd), collapse = "\n")
 
   return(output)
 }
