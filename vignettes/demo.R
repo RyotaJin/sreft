@@ -48,12 +48,10 @@ df_ <- makeDemodata(500,
 nmsheet <- makeNonmemSheet(df_, paste0("Biomarker", 1:3), "offsetT", lognorm = FALSE) %>%
   select(-CMT_name)
 
-inits <- setInitialPrms(df_, paste0("Biomarker", 1:3), "Biomarker3", 1.5, estimated_mean_offsetT = 10, lognorm = FALSE)
-
 write.csv(nmsheet, "data.csv", row.names = FALSE)
-write.csv(inits, "inits.csv", row.names = FALSE)
 
 
+inits <- setInitialPrms(df_, paste0("Biomarker", 1:3), "Biomarker3", 1.5, estimated_mean_offsetT = 10, lognorm = FALSE)
 runno <- "run001"
 ctl <- makeControlStream(inits,
                          nmsheet,
