@@ -67,10 +67,10 @@ cat(f90, file = paste0(runno, ".f90"))
 # system("execute run001.mod)
 
 
-df_offsetT_pred <- read_csv("offsetT.csv") %>%
+df_offsetT_pred <- read.csv("offsetT.csv") %>%
   rename(offsetT_pred = offsetT)
 
-df_fit <- read_csv(paste0(runno, ".fit")) %>%
+df_fit <- read.csv(paste0(runno, ".fit")) %>%
   left_join(df_offsetT_pred) %>%
   mutate(TIME = TIME + offsetT_pred,
          BM = CMT)

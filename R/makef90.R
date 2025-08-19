@@ -1,3 +1,4 @@
+#' @export
 makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col_BM = "CMT", cols_COVT = NULL, cols_COVY = NULL, plotmax = 40, plotmin = -15) {
   code_1st <- system.file("template/pred_Sreft_1st.f90", package = "sreft")
   code_1st <- readLines(code_1st)
@@ -13,13 +14,13 @@ makef90 <- function(df, col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col
 
   code_range <- paste0("      real (kind=dpsize) :: plotmax = ", plotmax, "d0, plotmin = ", plotmin, "d0\n")
 
-  code_prms <- paste0("      id = datrac(", which(names(df) == col_ID), ")\n",
-                      "      serial = datrac(", which(names(df) == col_serial), ")\n",
-                      "      time = datrac(", which(names(df) == col_TIME), ")\n",
-                      "      bm = datrac(", which(names(df) == col_BM), ")\n",
-                      "      meanx = datrac(/", paste(grep("MeanX", names(df)), collapse = ","), "/)\n",
-                      "      meany = datrac(/", paste(grep("MeanY", names(df)), collapse = ","), "/)\n",
-                      "      coun = datrac(/", paste(grep("Count", names(df)), collapse = ","), "/)\n",
+  code_prms <- paste0("      id = datrec(", which(names(df) == col_ID), ")\n",
+                      "      serial = datrec(", which(names(df) == col_serial), ")\n",
+                      "      time = datrec(", which(names(df) == col_TIME), ")\n",
+                      "      bm = datrec(", which(names(df) == col_BM), ")\n",
+                      "      meanx = datrec((/", paste(grep("MeanX", names(df)), collapse = ","), "/)\n",
+                      "      meany = datrec((/", paste(grep("MeanY", names(df)), collapse = ","), "/))\n",
+                      "      coun = datrec((/", paste(grep("Count", names(df)), collapse = ","), "/))\n",
                       "      a = theta(1:numbm) + eta(1:numbm)\n",
                       "      b = theta(1+numbm:2*numbm) + eta(1+numbm:2*numbm)\n",
                       "      c = theta(1+2*numbm:3*numbm) + eta(1+2*numbm:3*numbm)\n")
