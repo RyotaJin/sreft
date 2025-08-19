@@ -1,3 +1,12 @@
+    module sreft
+      use :: rocm_real, only: omega => varnf
+      use :: nmprd_int, only: nthes_ => nwtht, netas_ => nweta, nepss_ => nweps
+      use :: sizes, only: dpsize, isize
+      use :: rocm_int, only: nindr => nindobs, indr1 => idxobsf, indr2 => idxobsl
+      implicit none
+      integer (kind=isize), save :: numbm, numsj
+      integer (kind=isize), allocatable, save :: realid(:)
+      real (kind=dpsize) :: plotmax = {plotmax}d0, plotmin = {plotmin}d0
       real (kind=dpsize), allocatable, save :: offt(:)
     contains
 
@@ -109,7 +118,7 @@
       subroutine makecsv
         integer (kind=isize) :: i
 
-        open (13, file='../../offsetT.csv')
+        open (13, file='../../{runno}_offsetT.csv')
         write (13, '(a2, a1, a7)') 'ID', ',', 'offsetT'
         do i = 1, numsj
           write (13, '(i5, a1, e10.4)') realid(i), ',', offt(i)
@@ -159,3 +168,31 @@
       end if
 
       allocate (a(numbm), b(numbm), c(numbm), meanx(numbm), meany(numbm), coun(numbm), covy(numbm))
+
+      if (newind<=1) call initialize(id, meanx, meany, coun, a, b, c, bm, serial, covt, covy)
+
+      id = datrec({id_num})
+      serial = datrec({serial_num})
+      time  = datrec({time_num})
+      bm = daterec({bm_num})
+      meanx = datrec((/{meanx_num}/))
+      meany = datrec((/{meany_num}/))
+      coun = datrec((/{coun_num}/))
+      a = theta(1:numbm) + eta(1:numbm)
+      b = theta(1+numbm:2*numbm) + eta(1+numbm:2*numbm)
+      c = theta(1+2*numbm:3*numbm) + eta(1+2*numbm:3*numbm)
+      covt = 1.0d0{covt_code}
+      covy = 0.0d0{covy_code}
+
+      call eval(a, b, c, f, g, time, bm, serial, covt, covy)
+
+      f = f + eps(bm)
+      h = 0.0d0
+      h(bm, 1) = 1.0d0
+
+      if (icall==3) call makecsv
+
+      deallocate (a, b, c, meanx, meany, coun, covy)
+
+      return
+    end subroutine pred
