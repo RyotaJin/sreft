@@ -215,26 +215,26 @@ setInitialPrms <- function(df, selected_bm, definition_bm, definition_value,
                        meanslope = mapply(mean, .Slope_sp, na.rm = TRUE),
                        ave = sapply(df_[selected_bm], mean, na.rm = TRUE),
                        sd = sapply(df_[selected_bm], sd, na.rm = TRUE),
-                       omega_α = 0.0001,
-                       omega_β = 0,
-                       omega_γ = 0.0001,
+                       omega_alpha = 0.0001,
+                       omega_beta = 0,
+                       omega_gamma = 0.0001,
                        sigma = 0.1,
                        stringsAsFactors = FALSE)
 
   def_idx <- which(output$Biomarker == definition_bm)
-  output$omega_β[def_idx] <- 0.0001
-  output$omega_α[def_idx] <- 0
-  output$omega_γ[def_idx] <- 0
+  output$omega_beta[def_idx] <- 0.0001
+  output$omega_alpha[def_idx] <- 0
+  output$omega_gamma[def_idx] <- 0
 
-  output$α <- output$meanslope / exp(output$slope * estimated_mean_offsetT)
+  output$alpha <- output$meanslope / exp(output$slope * estimated_mean_offsetT)
   if (lognorm) {
-    output$α[def_idx] <- (log(definition_value) - output$ave[def_idx]) / output$sd[def_idx]
+    output$alpha[def_idx] <- (log(definition_value) - output$ave[def_idx]) / output$sd[def_idx]
   } else {
-    output$α[def_idx] <- definition_value
+    output$alpha[def_idx] <- definition_value
   }
 
-  output$β <- output$intercept + output$α * output$slope
-  output$γ <- output$slope
+  output$beta <- output$intercept + output$alpha * output$slope
+  output$gamma <- output$slope
 
   output[, -1] <- signif(output[, -1], digits = 5)
 
@@ -251,13 +251,13 @@ makeControlStream <- function(init, df, runno, no_definition_bm, cols_COVT = NUL
   ctl["data"] <- paste0("$DATA ", DATA, "\nIGNORE=@\n")
   ctl["subroutine"] <- paste0("$SUBROUTINE PRED=../../", runno, ".f90\n")
 
-  tmp_alpha <- as.character(init[, "α"])
+  tmp_alpha <- as.character(init[, "alpha"])
   tmp_alpha[no_definition_bm] <- paste(tmp_alpha[no_definition_bm], "FIX")
 
   ctl["theta"] <- paste0("$THETA\n" ,
                          paste(tmp_alpha, collapse = "\n"), "\n\n",
-                         paste(init[, "β"], collapse = "\n"), "\n\n",
-                         paste(init[, "γ"], collapse = "\n"), "\n\n")
+                         paste(init[, "beta"], collapse = "\n"), "\n\n",
+                         paste(init[, "gamma"], collapse = "\n"), "\n\n")
   if (!is.null(cols_COVT)) {
     ctl["theta"] <- paste0(ctl["theta"], paste(rep("0.1", length(cols_COVT)), collapse = "\n"), "\n\n")
   }
@@ -267,9 +267,9 @@ makeControlStream <- function(init, df, runno, no_definition_bm, cols_COVT = NUL
   }
 
   ctl["omega"] <- paste0("$OMEGA\n",
-                         paste(init[, "omega_α"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n\n",
-                         paste(init[, "omega_β"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n\n",
-                         paste(init[, "omega_γ"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n")
+                         paste(init[, "omega_alpha"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n\n",
+                         paste(init[, "omega_beta"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n\n",
+                         paste(init[, "omega_gamma"] %>% replace(. == 0, "0 FIX"), collapse = "\n"), "\n")
   ctl["sigma"] <- paste0("$SIGMA\n", paste(init[, "sigma"], collapse = "\n"), "\n")
   ctl["estimation"] <- "$ESTIMATION METHOD=1 MAXEVAL=99999 PRINT=1 NOABORT SIGDIGITS=2 NOTITLE=1\n"
   ctl["covariance"] <- "$COVARIANCE UNCONDITIONAL MATRIX=S\n"
