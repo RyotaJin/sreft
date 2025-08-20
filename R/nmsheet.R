@@ -284,15 +284,15 @@ makeControlStream <- function(init, df, runno, no_definition_bm, cols_COVT = NUL
 evalModel <- function(x, prms) {
   n_bm <- length(prms) / 3
   .time  <- x["TIME"]
-  .bm    <- x["BM"]
+  .cmt    <- x["CMT"]
   .alpha <- prms[paste0("alpha", 1:n_bm)]
   .beta  <- prms[paste0("beta", 1:n_bm)]
   .gamma <- prms[paste0("gamma", 1:n_bm)]
 
-  if (.bm == 1) {
-    output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
+  if (.cmt == 1) {
+    output <- .alpha[.cmt] + .beta[.cmt] / .gamma[.cmt] * (exp(.gamma[.cmt] * .time) - 1)
   }else{
-    output <- .alpha[.bm] + .beta[.bm] / .gamma[.bm] * (exp(.gamma[.bm] * .time) - 1)
+    output <- .alpha[.cmt] + .beta[.cmt] / .gamma[.cmt] * (exp(.gamma[.cmt] * .time) - 1)
   }
 
   return(output %>% as.numeric())

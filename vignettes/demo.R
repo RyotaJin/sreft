@@ -71,26 +71,25 @@ df_offsetT_pred <- read.csv("offsetT.csv") %>%
 
 df_fit <- read.csv(paste0(runno, ".fit")) %>%
   left_join(df_offsetT_pred) %>%
-  mutate(TIME = TIME + offsetT_pred,
-         BM = CMT)
+  mutate(TIME = TIME + offsetT_pred)
 
-# パラメータの読み込み
-prms <- read_table(paste0(runno, ".ext"), skip = 1) %>%
+# Load Final estimate
+prms <- read.table(paste0(runno, ".ext"), skip = 1) %>%
   filter(ITERATION == -1000000000) %>%
   select(matches("THETA")) %>%
   setNames(paste0(rep(c("alpha", "beta", "gamma"), each = (ncol(.) / 3)), 1:(ncol(.) / 3)))
 
 # prediction
 df_pred <- expand.grid(TIME = seq(min(df_fit$TIME), max(df_fit$TIME), len = 100),
-                       BM = 1:max(df_fit$CMT),
+                       CMT = 1:max(df_fit$CMT),
                        KEEP.OUT.ATTRS = FALSE) %>%
   mutate(pred = apply(., 1, evalModel, prms))
 
 ggplot(df_fit, aes(x = TIME, y = DV)) +
   geom_point(size = 0.7, alpha = 0.7, shape = 16) +
   geom_line(linewidth = 0.3, alpha = 0.7, aes(group = ID)) +
+  geom_line(data = df_pred, aes(x = TIME, y = pred, group = CMT), size = 1.5, colour = "#3366FF") +
   facet_wrap(~CMT, scales = "free_y") +
-  geom_line(data = df_pred, aes(x = TIME, y = pred), size = 1.5, colour = "#3366FF") +
   labs(x = "Time (year)", y = "DV")
 
 # offsetT
