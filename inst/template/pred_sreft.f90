@@ -83,7 +83,7 @@
 
         time = time + offt(serial)
 !main biomarker
-        if (bm==1) then
+        if (bm=={no_mainbm}) then
           if (c(bm)==0) then
             f = a(bm) + (covy(bm)+b(bm))*covt*time
             g = 0.0d0

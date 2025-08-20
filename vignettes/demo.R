@@ -59,7 +59,7 @@ ctl <- makeControlStream(inits,
                          3)
 cat(ctl, file = paste0(runno, ".mod"))
 
-f90 <- makef90(nmsheet, runno)
+f90 <- makef90(nmsheet, 3, runno)
 cat(f90, file = paste0(runno, ".f90"))
 
 

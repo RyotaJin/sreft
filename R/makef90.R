@@ -8,7 +8,7 @@ fill_template <- function(template_file, values) {
 }
 
 #' @export
-makef90 <- function(df, runno = "run000", col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col_BM = "CMT", cols_COVT = NULL, cols_COVY = NULL, plotmax = 40, plotmin = -15) {
+makef90 <- function(df, no_mainbm, runno = "run000", col_ID = "ID", col_serial = "ID", col_TIME = "TIME", col_BM = "CMT", cols_COVT = NULL, cols_COVY = NULL, plotmax = 40, plotmin = -15) {
   code_covt <- ""
   if (!is.null(cols_COVT)) {
     colnos_COVT <- which(names(df) %in% cols_COVT)
@@ -38,6 +38,7 @@ makef90 <- function(df, runno = "run000", col_ID = "ID", col_serial = "ID", col_
                           list(plotmax = plotmax,
                                plotmin = plotmin,
                                runno = runno,
+                               no_mainbm = no_mainbm,
                                id_num = which(names(df) == col_ID),
                                serial_num = which(names(df) == col_serial),
                                time_num = which(names(df) == col_TIME),
