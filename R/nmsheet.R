@@ -215,14 +215,14 @@ setInitialPrms <- function(df, selected_bm, definition_bm, definition_value,
                        meanslope = mapply(mean, .Slope_sp, na.rm = TRUE),
                        ave = sapply(df_[selected_bm], mean, na.rm = TRUE),
                        sd = sapply(df_[selected_bm], sd, na.rm = TRUE),
-                       omega_alpha = 0.0001,
+                       omega_alpha = 0.1,
                        omega_beta = 0,
-                       omega_gamma = 0.0001,
+                       omega_gamma = 0.01,
                        sigma = 0.1,
                        stringsAsFactors = FALSE)
 
   def_idx <- which(output$Biomarker == definition_bm)
-  output$omega_beta[def_idx] <- 0.0001
+  output$omega_beta[def_idx] <- 0.01
   output$omega_alpha[def_idx] <- 0
   output$omega_gamma[def_idx] <- 0
 

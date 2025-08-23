@@ -23,8 +23,8 @@ makeDemodata <- function(n_sub, prms_a, prms_b, prms_c, var_a, var_b, var_c, var
                            offsetT = runif(n_sub, min_time, max_time))
   for (i in 1:n_bm) {
     df_indprms[[paste0("a", i)]] <- prms_a[i] + rnorm(n_sub, 0, sqrt(var_a[i]))
-    df_indprms[[paste0("b", i)]] <- prms_b[i] + rnorm(n_sub, 0, sqrt(var_b[i]))
-    df_indprms[[paste0("c", i)]] <- prms_c[i] + rnorm(n_sub, 0, sqrt(var_c[i]))
+    df_indprms[[paste0("b", i)]] <- prms_b[i] * exp(rnorm(n_sub, 0, sqrt(var_b[i])))
+    df_indprms[[paste0("c", i)]] <- prms_c[i] * exp(rnorm(n_sub, 0, sqrt(var_c[i])))
   }
 
   df <- expand.grid(ID = 1:n_sub,
