@@ -176,10 +176,10 @@
       meanx = datrec((/{meanx_num}/))
       meany = datrec((/{meany_num}/))
       coun = datrec((/{coun_num}/))
-      
+
       a = theta(1:numbm) + eta(1:numbm)
-      b = theta(1+numbm:2*numbm) + eta(1+numbm:2*numbm)
-      c = theta(1+2*numbm:3*numbm) + eta(1+2*numbm:3*numbm)
+      b = theta(1+numbm:2*numbm) * exp(eta(1+numbm:2*numbm))
+      c = theta(1+2*numbm:3*numbm) * exp(eta(1+2*numbm:3*numbm))
       covt = 1.0d0{covt_code}
       covy = 0.0d0{covy_code}
 

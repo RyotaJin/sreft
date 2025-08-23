@@ -1,0 +1,157 @@
+---
+title: "sreftパッケージを用いたSReFTの流れ"
+author: "Ryota Jin"
+date: "2025-08-22"
+---
+
+## 前提条件
+
+SReFTを実施するときはまず解析用のフォルダを用意します。最終的には以下のようなフォルダ構成になります。main.Rは本デモのコードを想定しています。
+
+```
+root
+├── main.R
+├── data.csv
+├── run001.mod
+├── run001.f90
+└── NONMEM outputs
+```
+
+## 環境セットアップ
+
+ライブラリの読み込みとワーキングディレクトリの設定をします。
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(sreft)
+library(tidyr)
+
+setwd("set/to/root/folder")
+```
+
+## デモデータの作成
+
+ここではデモデータを利用しますので、`makeDemodata`関数を用いてデモデータを作成します。
+なお現在はalphaには加法誤差、betaとgammaには指数誤差を設定しています。これによってbetaとgammaは符号が変化しないため、あらかじめ関数形を定める必要があります。加法誤差にすることで自由に探索することができますが、推定が不安定になります。多くの場合で増減などはわかっているため、指定することをお勧めします。betaの正負は増減を、gammaの正負は収束と発散を意味します。
+
+```{r}
+set.seed(42)
+df_demo <- makeDemodata(n_sub = 300,
+                        prms_a = c(-2, 2, 1.5),
+                        prms_b = c(0.05, -0.05, -0.2),
+                        prms_c = c(0.1, 0.1, -0.1),
+                        var_a = c(0.1, 0.1, 0),
+                        var_b = c(0, 0, 0.05),
+                        var_c = c(0.02, 0.02, 0),
+                        var_res = c(0.2, 0.2, 0.2),
+                        min_time = -5,
+                        max_time = 20,
+                        timepoint = 0:4)
+head(df_demo)
+```
+
+``` {r}
+df_demo %>%
+  pivot_longer(cols = paste0("Biomarker", 1:3), names_to = "BM", values_to = "DV") %>%
+  ggplot(aes(x = TIME, y = DV, group = ID, color = factor(BM))) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(.~BM, ncol = 3, scales = "free")
+
+df_demo %>%
+  pivot_longer(cols = paste0("Biomarker", 1:3), names_to = "BM", values_to = "DV") %>%
+  ggplot(aes(x = TIME2, y = DV, group = ID, color = factor(BM))) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(.~BM, ncol = 3, scales = "free")
+```
+
+## SReFT用にデータセットを変換
+
+次に`makeNonmemSheet`関数を用いてデモデータをSReFT用のデータセットに変換します。具体的にはoffsetTの計算に必要な特徴量を観測値から計算して、NONMEM形式に整えます。
+今回はでもデータなのでoffsetTの真値があります。ここでは共変量扱いすることでNONMEM用のデータセットに引き継いでいます。
+また、SReFTはバイオマーカーの観測値を対数正規化することで解析を安定させています。今回はデータ合成を簡略化するため対数正規化を行いません。
+
+```{r}
+nmsheet <- makeNonmemSheet(df_demo,
+                           paste0("Biomarker", 1:3),
+                           "offsetT",
+                           lognorm = FALSE) %>%
+  select(-CMT_name)
+
+write.csv(nmsheet, "data.csv", row.names = FALSE)
+```
+
+## 初期値の推定
+
+SReFTのパラメータは生理学的意味を持ちません。そのためSReFTでは初期値の設定が困難です。`setInitialPrms`関数はおおよその初期値を決めることができます。
+この時SReFTでは疾患時間の0を定義する条件の設定が必要なため、どのバイオマーカーのどの値を基準とするかを指定する必要があります。
+
+```{r}
+inits <- setInitialPrms(df_demo,
+                        paste0("Biomarker", 1:3),
+                        "Biomarker3",
+                        1.5,
+                        estimated_mean_offsetT = 10,
+                        lognorm = FALSE)
+```
+
+## モデル、Fortranファイルの作成
+
+CONTROLファイルと$PREDに相当するFortranのファイルを生成して保存します。`makeControlStream`関数と`makef90`関数によってCONTROLとFortranファイルが文字列型で返ってくるのでそれぞれテキストファイルとして保存します。
+
+```{r}
+runno <- "run001"
+ctl <- makeControlStream(inits,
+                         nmsheet,
+                         runno,
+                         3)
+cat(ctl, file = paste0(runno, ".mod"))
+
+f90 <- makef90(nmsheet,
+               3,
+               runno)
+cat(f90, file = paste0(runno, ".f90"))
+```
+
+## 解析の実行
+
+ここまでで必要なファイルが揃ったのでNONMEMを実行します。技術的な理由でPsNのexecuteコマンドを想定しています。具体的にはFortranファイル内の相対パスがexecuteとnmfeでは異なります。
+
+## 結果の確認
+
+解析が完了するとNONMEMの通常のアウトプットに加えてoffsetT.csvが出力されます。これを使うことで最終的な推定結果が確認できます。
+
+```{r}
+df_offsetT_pred <- read.csv("offsetT.csv", quote = FALSE) %>%
+  rename(offsetT_pred = offsetT)
+
+df_fit <- read.csv(paste0(runno, ".fit")) %>%
+  left_join(df_offsetT_pred) %>%
+  mutate(TIME = TIME + offsetT_pred)
+
+prms <- read.table(paste0(runno, ".ext"), skip = 1, header = TRUE) %>%
+  filter(ITERATION == -1000000000) %>%
+  select(matches("THETA")) %>%
+  setNames(paste0(rep(c("alpha", "beta", "gamma"), each = (ncol(.) / 3)), 1:(ncol(.) / 3)))
+
+df_pred <- expand.grid(TIME = seq(min(df_fit$TIME), max(df_fit$TIME), len = 100),
+                       CMT = 1:max(df_fit$CMT),
+                       KEEP.OUT.ATTRS = FALSE) %>%
+  mutate(pred = apply(., 1, evalModel, prms))
+
+ggplot(df_fit, aes(x = TIME, y = DV)) +
+  geom_point(size = 0.7, alpha = 0.7, shape = 16) +
+  geom_line(linewidth = 0.3, alpha = 0.7, aes(group = ID)) +
+  geom_line(data = df_pred, aes(x = TIME, y = pred, group = CMT), size = 1.5, colour = "#3366FF") +
+  facet_wrap(~CMT, scales = "free_y") +
+  labs(x = "Time (year)", y = "DV")
+
+df_fit %>%
+  distinct(ID, offsetT, offsetT_pred) %>%
+  ggplot(aes(x = offsetT, y = offsetT_pred)) +
+  geom_abline(slope = 1) +
+  geom_point() +
+  stat_smooth()
+```
